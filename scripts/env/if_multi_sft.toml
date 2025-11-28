@@ -1,0 +1,10 @@
+image = "/iopsstor/scratch/cscs/yanghao/project/env/if_multi_sft.sqsh"
+mounts = [
+"/capstor",
+"/iopsstor",
+"/users",
+]
+workdir = "/workspace"
+[annotations]
+com.hooks.aws_ofi_nccl.enabled = "true"
+com.hooks.aws_ofi_nccl.variant = "cuda12"
