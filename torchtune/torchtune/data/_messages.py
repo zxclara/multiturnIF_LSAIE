@@ -852,6 +852,62 @@ class AlpacaToMessages(Transform):
         return {"messages": messages}
 
 
+class IFToMessages(Transform):
+    """
+    Message transform class for Tulu3-sft-personas-if-style datasets with "messages" and "constraints".
+
+    Args:
+        train_on_input (Optional[bool]): whether the model is trained on the user prompt or not.
+            Deprecated parameter and will be removed in a future release.
+            Default is None.
+        masking_strategy (Optional[str]): masking strategy to use for model training.
+            Must be one of: `train_on_all`, `train_on_assistant`, `train_on_last`.
+            Default is "train_on_all".
+
+            - ``train_on_all``: both user and assistant messages are unmasked
+            - ``train_on_assistant``: user messages are masked, only assistant messages are unmasked
+            - ``train_on_last``: only the last assistant message is unmasked
+    """
+
+    def __init__(
+        self,
+        train_on_input: Optional[bool] = None,
+        masking_strategy: Optional[str] = "train_on_all",
+    ):
+        if train_on_input is not None:
+            warn(
+                "train_on_input is deprecated and will be removed in a future release. "
+                "Please use masking_strategy instead."
+                "You should replace train_on_input=True with masking_strategy='train_on_all', and "
+                "train_on_input=False with masking_strategy='train_on_assistant'."
+                "For backwards compatibility, if you pass both train_on_input and masking_strategy, "
+                "the value of masking_strategy will be ignored until torchtune 0.7. ",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            masking_strategy = (
+                "train_on_all" if train_on_input else "train_on_assistant"
+            )
+        self.masking_strategy = masking_strategy
+        self._column_map = {
+            "messages": "messages",
+            "constraints": "constraints",
+        }
+        self.template = "{text}"
+
+    def __call__(self, sample: Mapping[str, Any]) -> Mapping[str, Any]:
+        messages = [
+            Message(
+                role=message['role'],
+                content=self.template.format(text=message['content']),
+                eot=True,
+            )
+            for message in sample[self._column_map["messages"]]
+        ]
+        mask_messages(messages, self.masking_strategy)
+        return {"messages": messages} #, "constraints": sample[self._column_map["constraints"]]}
+
+
 def validate_messages(
     messages: list[Message],
 ) -> None:

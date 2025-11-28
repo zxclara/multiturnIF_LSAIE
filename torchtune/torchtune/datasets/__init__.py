@@ -11,6 +11,7 @@ from torchtune.datasets._cnn_dailymail import cnn_dailymail_articles_dataset
 from torchtune.datasets._concat import ConcatDataset
 from torchtune.datasets._grammar import grammar_dataset
 from torchtune.datasets._hh_rlhf_helpful import hh_rlhf_helpful_dataset
+from torchtune.datasets._if import if_dataset
 from torchtune.datasets._instruct import instruct_dataset
 from torchtune.datasets._packed import PackedDataset
 from torchtune.datasets._preference import preference_dataset, PreferenceDataset
@@ -44,4 +45,5 @@ __all__ = [
     "SFTDataset",
     "hh_rlhf_helpful_dataset",
     "multimodal",
+    "if_dataset"
 ]

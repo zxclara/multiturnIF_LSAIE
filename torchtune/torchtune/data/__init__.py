@@ -16,6 +16,7 @@ from torchtune.data._common import CROSS_ENTROPY_IGNORE_IDX
 from torchtune.data._messages import (
     AlpacaToMessages,
     ChosenRejectedToMessages,
+    IFToMessages,
     InputOutputToMessages,
     mask_messages,
     Message,
@@ -50,6 +51,7 @@ __all__ = [
     "PromptTemplateInterface",
     "PromptTemplate",
     "InputOutputToMessages",
+    "IFToMessages",
     "ChosenRejectedToMessages",
     "QuestionAnswerTemplate",
     "ChatMLTemplate",

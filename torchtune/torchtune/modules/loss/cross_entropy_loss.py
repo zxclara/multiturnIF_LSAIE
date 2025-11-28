@@ -186,3 +186,55 @@ class LinearCrossEntropyLoss(SFTLoss, nn.Module):
             total_loss += loss
 
         return total_loss / total_valid_tokens
+
+class LinearScaledCrossEntropyLoss(LinearCrossEntropyLoss):
+    def __init__(
+        self,
+        num_output_chunks: int = 8,
+        ignore_index: int = -100,
+        tp_enabled: bool = False,
+        mask_ignored_tokens: bool = True,
+    ):
+        super().__init__(
+            num_output_chunks=num_output_chunks,
+            ignore_index=ignore_index,
+            tp_enabled=tp_enabled,
+            mask_ignored_tokens=mask_ignored_tokens,
+        )
+        log.info(f"[Reminder] LinearScaledCrossEntropyLoss is used...")
+    
+    def compute_cross_entropy(
+        self,
+        hidden_chunk: torch.Tensor,
+        target_chunk: torch.Tensor,
+    ) -> torch.Tensor:
+        """ Generalized cross-entropy by scaling token-wise loss from https://arxiv.org/abs/2508.05629.
+        
+        Computes cross-entropy by masking tokens, calculating logits and then applying cross-entropy loss.
+
+        Args:
+            hidden_chunk (torch.Tensor): [batch_size, chunk_size, embed_dim]
+            target_chunk (torch.Tensor): [batch_size, chunk_size]
+
+        Returns:
+            torch.Tensor: Sum of cross-entropy loss for non-ignored tokens in the chunk
+
+        Raises:
+            AttributeError: if called before update_model
+        """
+        # [num_valid, embed_dim] @ [embed_dim, vocab_size]
+        if self.linear_projection is None:
+            raise AttributeError("forward called before update_model")
+        logits = self.linear_projection(hidden_chunk)  # [num_valid, vocab_size]
+
+        loss = F.cross_entropy(
+            logits.float(),
+            target_chunk,
+            reduction="none", # [generalized sft ce loss] no reduction
+            ignore_index=self.ignore_index,
+        )
+
+        # [generalized sft ce loss] scaling token-wise loss before summation, using float logits for prob calculation
+        loss = (loss * torch.softmax(logits.float(), dim=-1).gather(1, target_chunk.unsqueeze(-1)).squeeze(-1).detach()).sum()
+
+        return loss
