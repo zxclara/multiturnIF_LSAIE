@@ -16,6 +16,8 @@ from prompts import (
     build_evaluator_prompt,
     build_planner_user,
     build_responder_system,
+    load_fewshot_text,
+    load_taxonomy_text,
 )
 
 
@@ -109,7 +111,32 @@ async def call_chat(
     messages: List[Dict[str, str]],
     temperature: float,
     timeout: int,
+    max_tokens: Optional[int] = None,
+    request_type: Optional[str] = None,
 ) -> str:
+    # Log the first payload per request type to help debugging.
+    if not hasattr(call_chat, "_logged_types"):
+        call_chat._logged_types = set()  # type: ignore[attr-defined]
+    if request_type and request_type not in call_chat._logged_types:  # type: ignore[attr-defined]
+        try:
+            logging.info(
+                "First %s request payload: %s",
+                request_type,
+                json.dumps(
+                    {
+                        "model": model,
+                        "temperature": temperature,
+                        "timeout": timeout,
+                        "max_tokens": max_tokens,
+                        "messages": messages,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        except Exception:
+            logging.info("First %s request payload logging failed", request_type)
+        call_chat._logged_types.add(request_type)  # type: ignore[attr-defined]
+
     last_err: Optional[Exception] = None
     for attempt in range(config.MAX_RETRIES):
         try:
@@ -119,19 +146,22 @@ async def call_chat(
                     messages=messages,
                     temperature=temperature,
                     timeout=timeout,
+                    max_tokens=max_tokens,
                 )
             return resp.choices[0].message.content or ""
         except Exception as e:
             last_err = e
             wait = min(2 ** attempt * 0.5, 8.0) + random.uniform(0, 0.25)
             logging.warning(
-                "chat error (attempt %d/%d): %s; retrying in %.2fs",
+                "chat error (attempt %d/%d): %s; retrying in %.2fs; model=%s",
                 attempt + 1,
                 config.MAX_RETRIES,
                 e,
                 wait,
+                model,
             )
             await asyncio.sleep(wait)
+    logging.error("chat failed after %d attempts; last error: %s", config.MAX_RETRIES, last_err)
     raise last_err if last_err else RuntimeError("Unknown chat error")
 
 
@@ -158,8 +188,16 @@ async def generate_plan(
     seed: Dict[str, Any],
     plan_idx: int,
     run_id: str,
+    taxonomy_text: str,
+    fewshot_text: str,
 ) -> Dict[str, Any]:
-    user_msg = build_planner_user(seed["user"], seed["assistant"], config.PLAN_TURNS)
+    user_msg = build_planner_user(
+        seed["user"],
+        seed["assistant"],
+        config.PLAN_TURNS,
+        taxonomy_text,
+        fewshot_text,
+    )
     messages = [
         {"role": "system", "content": PLANNER_SYSTEM},
         {"role": "user", "content": user_msg},
@@ -171,6 +209,8 @@ async def generate_plan(
         messages=messages,
         temperature=config.PLANNER_TEMPERATURE,
         timeout=config.DEFAULT_TIMEOUT,
+        max_tokens=config.MAX_TOKENS,
+        request_type="planner",
     )
     parsed = parse_json_maybe(content)
     parsed.setdefault("questions", [])
@@ -203,6 +243,8 @@ async def run_responder(
                 messages=history,
                 temperature=config.RESPONDER_TEMPERATURE,
                 timeout=config.DEFAULT_TIMEOUT,
+                max_tokens=config.MAX_TOKENS,
+                request_type="responder",
             )
         ).strip()
         history.append({"role": "assistant", "content": answer})
@@ -236,6 +278,8 @@ async def evaluate_trajectory(
         messages=messages,
         temperature=config.EVALUATOR_TEMPERATURE,
         timeout=config.DEFAULT_TIMEOUT,
+        max_tokens=config.MAX_TOKENS,
+        request_type="evaluator",
     )
     parsed = parse_json_maybe(content)
     parsed["raw"] = content
@@ -285,9 +329,13 @@ async def process_seed(
     run_id: str,
     plans_path: Path,
     dialogues_path: Path,
+    taxonomy_text: str,
+    fewshot_text: str,
 ) -> None:
     for plan_idx in range(config.PLANS_PER_SEED):
-        plan = await generate_plan(client, sem, seed, plan_idx, run_id)
+        plan = await generate_plan(
+            client, sem, seed, plan_idx, run_id, taxonomy_text, fewshot_text
+        )
         append_jsonl(plans_path, {"seed": seed, "plan": plan})
         entries = []
 
@@ -358,11 +406,22 @@ async def main() -> None:
         raise RuntimeError(f"Missing API key env var {config.API_KEY_ENV}")
     client = AsyncOpenAI(base_url=config.BASE_URL, api_key=api_key)
     sem = asyncio.Semaphore(config.MAX_CONCURRENCY)
+    taxonomy_text = load_taxonomy_text() if config.USE_TAXONOMY else ""
+    fewshot_text = load_fewshot_text() if config.USE_FEWSHOT else ""
     seeds = load_seeds(config.SEEDS_PER_RUN)
     plans_path = config.PLANS_DIR / f"{run_id}.jsonl"
     dialogues_path = config.DIALOGUES_DIR / f"{run_id}.jsonl"
     for seed in seeds:
-        await process_seed(client, sem, seed, run_id, plans_path, dialogues_path)
+        await process_seed(
+            client,
+            sem,
+            seed,
+            run_id,
+            plans_path,
+            dialogues_path,
+            taxonomy_text,
+            fewshot_text,
+        )
 
 
 if __name__ == "__main__":

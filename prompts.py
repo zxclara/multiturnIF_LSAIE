@@ -1,4 +1,13 @@
+import random
+import re
+import time
+from functools import lru_cache
 from textwrap import dedent
+from typing import List
+
+from datasets import load_dataset, load_from_disk
+
+import config
 
 CHALLENGE_DEFS = dedent(
     """
@@ -38,7 +47,93 @@ CHALLENGE_TAXONOMY_SUMMARY = dedent(
 )
 
 
-def build_planner_user(seed_user: str, seed_assistant: str, plan_turns: int) -> str:
+def clean_tex(path) -> str:
+    text = path.read_text(encoding="utf-8")
+    lines = []
+    for line in text.splitlines():
+        if line.strip().startswith("%"):
+            continue
+        lines.append(line)
+    text = "\n".join(lines)
+    text = text.replace("\\\\", "\n")
+    text = re.sub(r"\\(toprule|midrule|bottomrule|hline|cline\\{[^}]+\\})", "", text)
+    text = re.sub(r"\\(begin|end)\\{[^}]+\\}", "", text)
+    text = re.sub(r"\\[a-zA-Z]+\\*", "", text)
+    text = re.sub(r"\\textbf\\{([^}]+)\\}", r"\\1", text)
+    text = re.sub(r"\\label\\{[^}]+\\}", "", text)
+    text = re.sub(r"\\caption\\{[^}]+\\}", "", text)
+    text = re.sub(r"\\{", "{", text)
+    text = re.sub(r"\\}", "}", text)
+    text = re.sub(r"\\$", "", text)
+    text = re.sub(r" +", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+@lru_cache()
+def load_taxonomy_text() -> str:
+    parts = []
+    for path in config.TAXONOMY_FILES:
+        if path.exists():
+            parts.append(f"=== {path.name} ===\n{clean_tex(path)}")
+    return "\n\n".join(parts)
+
+
+def format_fewshot_example(example: dict, idx: int) -> str:
+    convo_lines = []
+    for turn in example.get("CONVERSATION", []):
+        role = turn.get("role", "").upper()
+        content = turn.get("content", "")
+        convo_lines.append(f"{role}: {content}")
+    convo_text = "\n".join(convo_lines)
+    target_q = example.get("TARGET_QUESTION", "")
+    pass_criteria = example.get("PASS_CRITERIA", "")
+    axis = example.get("AXIS", "")
+    return dedent(
+        f"""
+        Example {idx} (AXIS={axis}):
+        Conversation, please note how the user questions flow natrually:
+        {convo_text}
+        Target trap: {target_q}
+        passing criteria for trap: {pass_criteria}
+        """
+    ).strip()
+
+
+@lru_cache()
+def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES) -> str:
+    local_path = config.HF_CACHE / "multichallenge"
+    if local_path.exists():
+        ds = load_from_disk(str(local_path))
+    else:
+        ds = load_dataset(
+            config.FEWSHOT_DATASET_ID,
+            split="train",
+            cache_dir=str(config.HF_CACHE),
+        )
+    total = len(ds)
+    k = min(k, total)
+    random.seed(int(time.time()))
+    indices = random.sample(range(total), k)
+    examples = [format_fewshot_example(ds[i], idx + 1) for idx, i in enumerate(indices)]
+    return "\n\n".join(examples)
+
+
+def build_planner_user(
+    seed_user: str,
+    seed_assistant: str,
+    plan_turns: int,
+    taxonomy_text: str,
+    fewshot_text: str,
+) -> str:
+    taxonomy_section = ""
+    if config.USE_TAXONOMY and taxonomy_text:
+        taxonomy_section = f"\nFull taxonomy and trap surfaces (verbatim from appendix):\n{taxonomy_text}\n"
+
+    fewshot_section = ""
+    if config.USE_FEWSHOT and fewshot_text:
+        fewshot_section = f"\nFew-shot examples (from nmayorga7/multichallenge):\n{fewshot_text}\n"
+
     return dedent(
         f"""
         Seed user message:
@@ -49,9 +144,10 @@ def build_planner_user(seed_user: str, seed_assistant: str, plan_turns: int) -> 
 
         {CHALLENGE_DEFS}
 
-        {CHALLENGE_TAXONOMY_SUMMARY}
-
         {TRAP_GUIDE}
+
+        {taxonomy_section}
+        {fewshot_section}
 
         Requirements:
         - Select exactly one challenge type (choose the best fit for this seed).

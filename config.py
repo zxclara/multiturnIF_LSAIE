@@ -26,11 +26,22 @@ HF_CACHE = ROOT / "hfdata"
 PLANS_DIR = ROOT / "generated" / "plans"
 DIALOGUES_DIR = ROOT / "generated" / "dialogues"
 LOG_DIR = ROOT / "logs"
+TAXONOMY_FILES = [
+    ROOT.parent / "multichallenge_arXiv-2501.17399v2" / "appendix_items" / "topic_heirarchical_tax.tex",
+    ROOT.parent / "multichallenge_arXiv-2501.17399v2" / "appendix_items" / "evaluation_configs.tex",
+]
 
 # Concurrency settings (limit simultaneous API calls)
 # You measured success at 256 concurrent requests; set a conservative default here.
-MAX_CONCURRENCY = 64
+MAX_CONCURRENCY = 16
 
 # Misc
-DEFAULT_TIMEOUT = 120
+DEFAULT_TIMEOUT = 300
+MAX_TOKENS = 2048
 DATASET_ID = "allenai/tulu-3-sft-personas-instruction-following"
+FEWSHOT_DATASET_ID = "nmayorga7/multichallenge"
+FEWSHOT_SAMPLES = 1
+
+# Prompt size toggles
+USE_TAXONOMY = False
+USE_FEWSHOT = True
