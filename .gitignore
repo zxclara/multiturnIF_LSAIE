@@ -1,0 +1,5 @@
+*.jsonl
+*.json
+*.log
+hfdata/
+__pycache__/
