@@ -5,5 +5,18 @@ host: "0.0.0.0"
 port: 8080
 uvicorn-log-level: "info"
 tensor-parallel-size: 4
-gpu-memory-utilization: 0.9
+gpu-memory-utilization: 0.8
+max-model-len: 32768
+max-num-seqs: 128 # 128
+override-generation-config: '{ "temperature": 0.6, "top_p": 0.8, "top_k": 40, "max_new_tokens": 16384 }'
 seed: 42
+
+# use_cudagraph: false
+# enforce_eager: true # disable compilation
+# cudagraph_mode: []  # disable CUDA graphs
+# swap-space: 32
+kv_cache_dtype: 'fp8'
+
+max-num-batched-tokens: 32768 # 16384
+# disable-logstats: true
+# disable-state-dumping: true

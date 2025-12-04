@@ -44,7 +44,7 @@ VLLM_CMD="
 vllm serve \
     --dtype auto \
     --pipeline-parallel-size ${SLURM_NNODES} \
-    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/olmo3_7b_instruct.yaml
+    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/qwen3_next_80b_instruct.yaml
 "
 CMD="
 # print current environment variables

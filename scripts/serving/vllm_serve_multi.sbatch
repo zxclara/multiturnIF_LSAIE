@@ -41,8 +41,9 @@ echo "[sbatch-master] execute command on compute nodes"
 VLLM_CMD="
 vllm serve \
     --dtype auto \
+    --distributed-executor-backend ray \
     --pipeline-parallel-size ${SLURM_NNODES} \
-    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/olmo3_32b_think.yaml
+    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/qwen3_next_80b_instruct.yaml
 "
 RAY_START_CMD='
 if [ "$SLURM_NODEID" == "0" ]; then
