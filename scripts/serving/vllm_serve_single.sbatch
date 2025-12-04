@@ -34,8 +34,8 @@ echo "[sbatch-master] MASTER_IP: ${MASTER_IP}"
 
 export NCCL_SOCKET_IFNAME=lo
 export GLOO_SOCKET_IFNAME=lo
-export HF_HOME=/iopsstor/scratch/cscs/${USER}/models/
-export HF_HUB_CACHE=/iopsstor/scratch/cscs/${USER}/models/
+export HF_HOME=/capstor/scratch/cscs/${USER}/models/
+export HF_HUB_CACHE=/capstor/scratch/cscs/${USER}/models/
 
 echo "[sbatch-master] execute command on compute nodes"
 

@@ -32,8 +32,8 @@ export WORLD_SIZE=$(( SLURM_NNODES * SLURM_NTASKS_PER_NODE ))
 export MASTER_IP=$(hostname -i)
 echo "[sbatch-master] MASTER_IP: ${MASTER_IP}"
 
-export HF_HOME=/iopsstor/scratch/cscs/${USER}/models/
-export HF_HUB_CACHE=/iopsstor/scratch/cscs/${USER}/models/
+export HF_HOME=/capstor/scratch/cscs/${USER}/models/
+export HF_HUB_CACHE=/capstor/scratch/cscs/${USER}/models/
 
 echo "[sbatch-master] execute command on compute nodes"
 
