@@ -129,7 +129,10 @@ def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES) -> str:
     random.seed(int(time.time()))
     indices = random.sample(range(total), k)
     examples = [format_fewshot_example(ds[i], idx + 1) for idx, i in enumerate(indices)]
-    return "\n\n".join(examples)
+    stitched = "\n\n".join(examples)
+    if len(stitched) > config.FEWSHOT_MAX_CHARS:
+        stitched = stitched[: config.FEWSHOT_MAX_CHARS]
+    return stitched
 
 
 @lru_cache()

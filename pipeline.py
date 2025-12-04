@@ -85,6 +85,14 @@ def parse_json_maybe(text: str) -> Dict[str, Any]:
         if questions is None:
             questions = re.findall(r'"([^"]+)"', q_match.group(1))
         salvage["questions"] = questions or []
+    else:
+        # If the list is truncated (missing closing ]), grab everything after the marker.
+        q_start = re.search(r'"questions"\s*:\s*\[', cleaned, flags=re.DOTALL)
+        if q_start:
+            tail = cleaned[q_start.end() :]
+            questions = re.findall(r'"([^"]+)"', tail)
+            if questions:
+                salvage["questions"] = questions
 
     return salvage
 
@@ -185,18 +193,53 @@ async def call_chat(
                 )
             content = resp.choices[0].message.content or ""
             if not content.strip():
-                raise RuntimeError("empty response content")
+                finish_reason = getattr(resp.choices[0], "finish_reason", None)
+                resp_id = getattr(resp, "id", None)
+                usage = getattr(resp, "usage", None)
+                usage_info = None
+                if usage:
+                    usage_info = {
+                        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                        "completion_tokens": getattr(usage, "completion_tokens", None),
+                        "total_tokens": getattr(usage, "total_tokens", None),
+                    }
+                prompt_chars = sum(len(m.get("content", "")) for m in messages if isinstance(m, dict))
+                logging.warning(
+                    "empty response content; id=%s finish_reason=%s usage=%s prompt_chars=%s max_tokens=%s type=%s",
+                    resp_id,
+                    finish_reason,
+                    usage_info,
+                    prompt_chars,
+                    max_tokens,
+                    request_type,
+                )
+                logging.debug("empty response raw: %s", resp)
+                raise RuntimeError(
+                    f"empty response content (id={resp_id}, finish_reason={finish_reason})"
+                )
             return content
         except Exception as e:
             last_err = e
             wait = min(2 ** attempt * 0.5, 8.0) + random.uniform(0, 0.25)
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            body_snip = None
+            if status:
+                try:
+                    text = getattr(e.response, "text", None)
+                    if isinstance(text, str):
+                        body_snip = text[:300]
+                except Exception:
+                    body_snip = None
             logging.warning(
-                "chat error (attempt %d/%d): %s; retrying in %.2fs; model=%s",
+                "chat error (attempt %d/%d): %s; retrying in %.2fs; model=%s type=%s status=%s body=%s",
                 attempt + 1,
                 config.MAX_RETRIES,
                 e,
                 wait,
                 model,
+                request_type,
+                status,
+                body_snip,
             )
             await asyncio.sleep(wait)
     logging.error("chat failed after %d attempts; last error: %s", config.MAX_RETRIES, last_err)
@@ -220,6 +263,36 @@ def compute_score(evaluation: Dict[str, Any]) -> float:
     )
 
 
+def trim_messages_by_chars(messages: List[Dict[str, str]], max_chars: int) -> List[Dict[str, str]]:
+    """
+    Trim conversation to stay within max_chars (content length), keeping the system message
+    and the most recent turns. If still over limit, drop oldest non-system turns until under.
+    """
+    if not messages:
+        return messages
+
+    system_msg = messages[0]
+    tail = messages[1:]
+    kept: List[Dict[str, str]] = []
+    total = len(system_msg.get("content", ""))
+
+    # Walk from the end to keep the most recent turns.
+    for msg in reversed(tail):
+        length = len(msg.get("content", ""))
+        if total + length > max_chars and kept:
+            break
+        kept.append(msg)
+        total += length
+
+    trimmed = [system_msg] + list(reversed(kept))
+
+    # If still too long (e.g., huge system), drop oldest non-system turns.
+    while len(trimmed) > 2 and sum(len(m.get("content", "")) for m in trimmed) > max_chars:
+        trimmed.pop(1)
+
+    return trimmed
+
+
 async def generate_plan(
     client: AsyncOpenAI,
     sem: asyncio.Semaphore,
@@ -238,6 +311,20 @@ async def generate_plan(
         fewshot_text,
         planner_template,
     )
+    if len(user_msg) > config.PLANNER_PROMPT_MAX_CHARS:
+        logging.info(
+            "planner prompt too long (%d chars > %d); dropping fewshot/template and rebuilding",
+            len(user_msg),
+            config.PLANNER_PROMPT_MAX_CHARS,
+        )
+        user_msg = build_planner_user(
+            seed["user"],
+            seed["assistant"],
+            config.PLAN_TURNS,
+            taxonomy_text,
+            "",  # drop fewshot
+            "",  # drop template
+        )
     messages = [
         {"role": "system", "content": PLANNER_SYSTEM},
         {"role": "user", "content": user_msg},
@@ -277,15 +364,16 @@ async def run_responder(
     dialogue: List[Dict[str, str]] = []
     for q in plan.get("questions", [])[: config.PLAN_TURNS]:
         history.append({"role": "user", "content": q})
+        trimmed_history = trim_messages_by_chars(history, config.RESPONDER_PROMPT_MAX_CHARS)
         answer = (
             await call_chat(
                 client,
                 sem,
                 model=config.RESPONDER_MODEL,
-                messages=history,
+                messages=trimmed_history,
                 temperature=config.RESPONDER_TEMPERATURE,
                 timeout=config.DEFAULT_TIMEOUT,
-                max_tokens=config.MAX_TOKENS,
+                max_tokens=config.RESPONDER_MAX_TOKENS,
                 request_type="responder",
             )
         ).strip()

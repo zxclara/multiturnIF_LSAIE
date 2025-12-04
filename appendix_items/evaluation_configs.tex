@@ -1,0 +1,31 @@
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.11\linewidth}
+                  >{\raggedright\arraybackslash}p{0.20\linewidth}
+                  >{\raggedright\arraybackslash}p{0.16\linewidth}
+                  >{\raggedright\arraybackslash}p{0.16\linewidth}
+                  >{\raggedright\arraybackslash}p{0.20\linewidth}}
+
+\toprule
+      Challenge Category & Definition & Pass Criteria & Fail Criteria & Example \\ \midrule
+\endfirsthead
+
+\toprule
+      Challenge Category & Definition & Pass Criteria & Fail Criteria & Example \\ \midrule
+\endhead
+
+\midrule
+\multicolumn{5}{r}{\textit{Continued on next page}} \\ \bottomrule
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+Inference Memory & This metric evaluates the model's ability to retain and accurately reference SPECIFIC information from previous turns in the conversation, especially from multiple turns ago. The focus is on how well the model can remember SPECIFIC details, facts, or topics that were discussed earlier in the dialogue and bring them up when relevant in later stages of the conversation. & The model successfully recalls and integrates the necessary context from earlier turns, making its responses coherent and contextually appropriate. & If the model shows any indication that it forgot or misremembered key details from previous turns, leading to incoherent or contextually inconsistent responses, it would be considered a failure on this challenge category. & In a conversation about a dinner date, the user mentions their girlfriend is allergic to nuts. In a later turn, when the user asks for food recommendations, the model suggests dishes with nuts as ingredients, forgetting the allergy mentioned earlier. \\
+\midrule
+Instruction Retention & This challenge category evaluates the model's ability to maintain a SPECIFIC instruction throughout the entire dialogue. It covers the model's ability to sustain a specific instruction over a wide variety of user questions. This is ALWAYS in the first user message and the model MUST be informed explicitly that the instruction is for the ENTIRE conversation. & The model consistently adheres to the established instruction or guideline throughout the conversation without deviation. & If the model doesn't adhere to the initial instruction in any way this would be considered a failure on this metric. & The user instructs the model in the first turn to avoid expressing any opinions for the entirety of the conversation. The user tests the model by discussing topics like preferences in food, sports, and politics. The assistant remains neutral throughout, but in the final turn, it fails by stating, "You've certainly engaged in a thought-provoking and interesting conversation," when the user asked the model to rate their conversational skills. \\
+\midrule
+Reliable Version Editing & This challenge category evaluates the model's ability to process, integrate, and adapt to multiple, evolving instructions over the course of a conversation. Reliable Version Editing tests the model's flexibility and capacity to evolve its responses in accordance with increasingly complex or layered directives. & The model demonstrates a clear ability to refine its answers, successfully integrating multiple, evolving instructions while maintaining coherence. It should offer a response that respects all directives given, ensuring that no earlier instruction is forgotten, contradicted, or unduly deprioritized unless explicitly told to do so. & If the model fails to combine and respect the evolving instructions — for example, by ignoring a previous directive in favor of a newer one, contradicting earlier responses, or offering an answer that doesn't fully accommodate all the instructions provided — this would be considered a failure on the reliable version editing challenge category. & The user initially asks the model to help plan a week-long vacation itinerary for Italy. After the model suggests an itinerary, the user then requests adjustments, such as adding a specific restaurant in Rome, increasing time spent at museums, and removing one destination in favor of another. If the final itinerary fails to incorporate one or more of the requested modifications, this would be considered a failure on the reliable version editing challenge category. \\
+\midrule
+Self-Coherence & This challenge category specifically evaluates the model's ability to avoid contradictions in its responses. As new information or instructions are introduced, the model must maintain internal consistency, ensuring that its answers do not conflict with prior statements. & The model successfully avoids contradictions in its responses. It provides consistent information throughout the conversation, ensuring that new responses do not conflict with earlier ones. & The model fails if it provides contradictory information during the conversation based on its own limitations, not as a result of user manipulation or gaslighting. & The user asks the model about the distance from Earth to the Moon, and the model correctly responds with approximately 384,400 kilometers. Later in the conversation, when asked to explain how far light travels from the Earth to the Moon in one second, the model incorrectly states that the distance is only 300,000 kilometers instead of maintaining internal consistency with the previous answer. \\
+
+\end{longtable}
+\clearpage
