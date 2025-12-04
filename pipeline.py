@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import random
-from datetime import datetime
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,7 @@ from prompts import (
     build_planner_user,
     build_responder_system,
     load_fewshot_text,
+    load_planner_template_text,
     load_taxonomy_text,
 )
 
@@ -47,11 +49,44 @@ def parse_json_maybe(text: str) -> Dict[str, Any]:
         cleaned = cleaned.strip("`")
         if cleaned.startswith("json"):
             cleaned = cleaned[4:].strip()
-    try:
-        return json.loads(cleaned)
-    except Exception:
-        logging.warning("Failed to parse JSON; returning empty dict. Raw: %s", text)
-        return {}
+
+    def try_load(candidate: str) -> Optional[Dict[str, Any]]:
+        try:
+            return json.loads(candidate)
+        except Exception:
+            return None
+
+    parsed = try_load(cleaned)
+    if parsed is not None:
+        return parsed
+
+    logging.warning("Failed to parse JSON; attempting salvage. Raw: %s", text)
+
+    # If the content contains a full object somewhere inside, try that slice first.
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        parsed_slice = try_load(cleaned[start : end + 1])
+        if parsed_slice is not None:
+            return parsed_slice
+
+    salvage: Dict[str, Any] = {}
+    # Extract string fields if present.
+    for key in ["challenge_type", "trap_summary", "detection"]:
+        match = re.search(rf'"{key}"\s*:\s*"([^"]+)"', cleaned, flags=re.DOTALL)
+        if match:
+            salvage[key] = match.group(1)
+
+    # Extract questions list even if the tail of the JSON was truncated.
+    q_match = re.search(r'"questions"\s*:\s*\[(.*?)\]', cleaned, flags=re.DOTALL)
+    if q_match:
+        q_text = "[" + q_match.group(1) + "]"
+        questions = try_load(q_text)
+        if questions is None:
+            questions = re.findall(r'"([^"]+)"', q_match.group(1))
+        salvage["questions"] = questions or []
+
+    return salvage
 
 
 def extract_seed(record: Dict[str, Any], idx: int) -> Optional[Dict[str, Any]]:
@@ -148,7 +183,10 @@ async def call_chat(
                     timeout=timeout,
                     max_tokens=max_tokens,
                 )
-            return resp.choices[0].message.content or ""
+            content = resp.choices[0].message.content or ""
+            if not content.strip():
+                raise RuntimeError("empty response content")
+            return content
         except Exception as e:
             last_err = e
             wait = min(2 ** attempt * 0.5, 8.0) + random.uniform(0, 0.25)
@@ -190,6 +228,7 @@ async def generate_plan(
     run_id: str,
     taxonomy_text: str,
     fewshot_text: str,
+    planner_template: str,
 ) -> Dict[str, Any]:
     user_msg = build_planner_user(
         seed["user"],
@@ -197,6 +236,7 @@ async def generate_plan(
         config.PLAN_TURNS,
         taxonomy_text,
         fewshot_text,
+        planner_template,
     )
     messages = [
         {"role": "system", "content": PLANNER_SYSTEM},
@@ -209,7 +249,7 @@ async def generate_plan(
         messages=messages,
         temperature=config.PLANNER_TEMPERATURE,
         timeout=config.DEFAULT_TIMEOUT,
-        max_tokens=config.MAX_TOKENS,
+        max_tokens=config.PLANNER_MAX_TOKENS,
         request_type="planner",
     )
     parsed = parse_json_maybe(content)
@@ -217,6 +257,8 @@ async def generate_plan(
     parsed.setdefault("trap_summary", "")
     parsed.setdefault("detection", "")
     parsed.setdefault("challenge_type", "")
+    if not parsed.get("questions"):
+        raise RuntimeError("planner returned no questions (maybe truncated)")
     parsed["raw"] = content
     parsed["plan_idx"] = plan_idx
     parsed["run_id"] = run_id
@@ -247,6 +289,8 @@ async def run_responder(
                 request_type="responder",
             )
         ).strip()
+        if not answer:
+            raise RuntimeError("empty responder answer")
         history.append({"role": "assistant", "content": answer})
         dialogue.append({"role": "user", "content": q})
         dialogue.append({"role": "assistant", "content": answer})
@@ -282,6 +326,8 @@ async def evaluate_trajectory(
         request_type="evaluator",
     )
     parsed = parse_json_maybe(content)
+    if not parsed:
+        raise RuntimeError("empty evaluator result")
     parsed["raw"] = content
     return parsed
 
@@ -318,7 +364,7 @@ def build_entry(
         "trap_present": evaluation.get("trap_present", False),
         "trap_triggered": evaluation.get("trap_triggered", False),
         "selected": selected,
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -331,10 +377,18 @@ async def process_seed(
     dialogues_path: Path,
     taxonomy_text: str,
     fewshot_text: str,
+    planner_template: str,
 ) -> None:
     for plan_idx in range(config.PLANS_PER_SEED):
         plan = await generate_plan(
-            client, sem, seed, plan_idx, run_id, taxonomy_text, fewshot_text
+            client,
+            sem,
+            seed,
+            plan_idx,
+            run_id,
+            taxonomy_text,
+            fewshot_text,
+            planner_template,
         )
         append_jsonl(plans_path, {"seed": seed, "plan": plan})
         entries = []
@@ -398,7 +452,7 @@ async def process_seed(
 
 
 async def main() -> None:
-    run_id = datetime.utcnow().strftime("run_%Y%m%d_%H%M%S")
+    run_id = datetime.now(UTC).strftime("run_%Y%m%d_%H%M%S")
     setup_logging(run_id)
     ensure_dirs()
     api_key = os.environ.get(config.API_KEY_ENV)
@@ -408,6 +462,7 @@ async def main() -> None:
     sem = asyncio.Semaphore(config.MAX_CONCURRENCY)
     taxonomy_text = load_taxonomy_text() if config.USE_TAXONOMY else ""
     fewshot_text = load_fewshot_text() if config.USE_FEWSHOT else ""
+    planner_template = load_planner_template_text() if config.USE_AGENT_TEMPLATE else ""
     seeds = load_seeds(config.SEEDS_PER_RUN)
     plans_path = config.PLANS_DIR / f"{run_id}.jsonl"
     dialogues_path = config.DIALOGUES_DIR / f"{run_id}.jsonl"
@@ -421,6 +476,7 @@ async def main() -> None:
             dialogues_path,
             taxonomy_text,
             fewshot_text,
+            planner_template,
         )
 
 

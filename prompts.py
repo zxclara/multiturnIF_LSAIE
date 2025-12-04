@@ -11,27 +11,27 @@ import config
 
 CHALLENGE_DEFS = dedent(
     """
-    Challenge types (from Multi-Challenge paper):
-    - Inference Memory: test recall of specific details from earlier turns and use them correctly later.
-    - Instruction Retention: uphold a specific instruction for the entire conversation (tone, format, constraint, persona).
-    - Reliable Version Editing: integrate evolving instructions over the dialogue without dropping or contradicting earlier directives.
+    Challenge types (long-dialogue instruction following):
+    - Inference Memory: recall specific details from earlier turns and reuse them correctly later.
+    - Instruction Retention: uphold a specific instruction across all turns (tone/format/constraint/persona).
+    - Reliable Version Editing: integrate evolving instructions over the dialogue without dropping earlier directives.
     - Self-Coherence: avoid contradictions across turns (numbers, facts, tone, policy, narrative consistency).
     """
 )
 
 TRAP_GUIDE = dedent(
     """
-    Trap design guidance:
-    - Set up an explicit target check (the trap) that appears naturally in the planned turns.
-    - Make the trap observable (define what a triggered vs avoided response looks like).
-    - Keep the conversation realistic; no gaslighting or contrived failures.
+    Trap design guidance (instruction-following oriented):
+    - Embed the trap naturally in a realistic multi-turn dialogue; avoid adversarial or explicit “tests”.
+    - The trap should be detectable in later assistant replies (trigger vs avoid is observable).
+    - Align with long-form skills: instruction adherence, memory, coherence, evolving requirements.
     """
 )
 
 PLANNER_SYSTEM = dedent(
     """
-    You are a planner designing a 15-turn, trap-aware user question plan to test a model.
-    Role: vulnerability researcher posing as an innocent user.
+    You design 15-turn instruction-following challenge plans for long dialogues.
+    Goal: craft a realistic user-side question plan that subtly tests instruction-following, memory, and coherence.
     Output JSON only. Do not include explanations outside JSON.
     """
 )
@@ -47,8 +47,7 @@ CHALLENGE_TAXONOMY_SUMMARY = dedent(
 )
 
 
-def clean_tex(path) -> str:
-    text = path.read_text(encoding="utf-8")
+def _clean_tex_text(text: str) -> str:
     lines = []
     for line in text.splitlines():
         if line.strip().startswith("%"):
@@ -70,12 +69,26 @@ def clean_tex(path) -> str:
     return text.strip()
 
 
+def clean_tex(path) -> str:
+    return _clean_tex_text(path.read_text(encoding="utf-8"))
+
+
 @lru_cache()
 def load_taxonomy_text() -> str:
     parts = []
     for path in config.TAXONOMY_FILES:
-        if path.exists():
-            parts.append(f"=== {path.name} ===\n{clean_tex(path)}")
+        if not path.exists():
+            continue
+        raw = path.read_text(encoding="utf-8")
+        segments = raw.split("\\midrule")
+        if config.TAXONOMY_SAMPLE_RATIO >= 1.0:
+            sampled_segments = segments
+        else:
+            k = max(1, int(len(segments) * config.TAXONOMY_SAMPLE_RATIO))
+            sampled_segments = random.sample(segments, k)
+        stitched = "\\midrule".join(sampled_segments)
+        cleaned = _clean_tex_text(stitched)
+        parts.append(f"=== {path.name} ===\n{cleaned}")
     return "\n\n".join(parts)
 
 
@@ -92,10 +105,10 @@ def format_fewshot_example(example: dict, idx: int) -> str:
     return dedent(
         f"""
         Example {idx} (AXIS={axis}):
-        Conversation, please note how the user questions flow natrually:
+        Conversation (natural flow):
         {convo_text}
-        Target trap: {target_q}
-        passing criteria for trap: {pass_criteria}
+        Target trap (what to check later): {target_q}
+        Pass criteria: {pass_criteria}
         """
     ).strip()
 
@@ -119,20 +132,33 @@ def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES) -> str:
     return "\n\n".join(examples)
 
 
+@lru_cache()
+def load_planner_template_text() -> str:
+    path = config.PLANNER_TEMPLATE_FILE
+    if path.exists():
+        return _clean_tex_text(path.read_text(encoding="utf-8"))
+    return ""
+
+
 def build_planner_user(
     seed_user: str,
     seed_assistant: str,
     plan_turns: int,
     taxonomy_text: str,
     fewshot_text: str,
+    planner_template: str,
 ) -> str:
     taxonomy_section = ""
     if config.USE_TAXONOMY and taxonomy_text:
-        taxonomy_section = f"\nFull taxonomy and trap surfaces (verbatim from appendix):\n{taxonomy_text}\n"
+        taxonomy_section = f"\nTrap surfaces (sampled from appendix):\n{taxonomy_text}\n"
 
     fewshot_section = ""
     if config.USE_FEWSHOT and fewshot_text:
-        fewshot_section = f"\nFew-shot examples (from nmayorga7/multichallenge):\n{fewshot_text}\n"
+        fewshot_section = f"\nFew-shot examples (axis, conversation, target question, pass criteria):\n{fewshot_text}\n"
+
+    template_section = ""
+    if config.USE_AGENT_TEMPLATE and planner_template:
+        template_section = f"\nReference planner prompt template (adapted from appendix, cleaned):\n{planner_template}\n"
 
     return dedent(
         f"""
@@ -148,12 +174,13 @@ def build_planner_user(
 
         {taxonomy_section}
         {fewshot_section}
+        {template_section}
 
         Requirements:
-        - Select exactly one challenge type (choose the best fit for this seed).
-        - Design a trap-aware conversation plan with {plan_turns} user turns (questions/prompts).
-        - The plan must be realistic, context-linked, and flow naturally.
-        - Include how to detect if the trap appears and how to check whether it is triggered.
+        - Select exactly one challenge type (best fit for this seed).
+        - Produce a realistic, context-linked user-side plan with {plan_turns} turns; questions must flow naturally (avoid rigid checklists), keep each question concise (<20 words).
+        - Design a subtle trap: the plan should naturally surface the challenge without overt “tests”; keep trap/detection description concise.
+        - Provide detection: how to tell the trap appears and whether it is triggered (observer criteria).
 
         Return a JSON object with keys:
         {{
