@@ -1,0 +1,9 @@
+# config.yaml
+
+model: Qwen/Qwen3-Next-80B-A3B-Instruct
+host: "0.0.0.0"
+port: 8080
+uvicorn-log-level: "info"
+tensor-parallel-size: 4
+gpu-memory-utilization: 0.9
+seed: 42

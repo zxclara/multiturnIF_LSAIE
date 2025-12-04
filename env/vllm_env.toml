@@ -1,0 +1,10 @@
+image = "vllm/vllm-openai:v0.11.0-aarch64"
+mounts = [
+    "/capstor",
+    "/iopsstor",
+    "/users",
+]
+workdir = "/root"
+[annotations]
+com.hooks.gpu.enabled = "true"
+com.hooks.gpu.variant = "cuda12"

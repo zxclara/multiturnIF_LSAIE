@@ -16,6 +16,7 @@ from utils.timer_utils import measure_throughput
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="Qwen/Qwen3-Next-80B-A3B-Thinking", help="Assistant model")
+    parser.add_argument("--base_url", type=str, default="https://api.swissai.cscs.ch/v1")
     parser.add_argument("--swissai_api", type=str, required=True, help="API for SwissAPI Serving Platform")
     parser.add_argument("--max_tokens", type=int, default=1536)
     parser.add_argument("--temperature", type=float, default=0.6)
@@ -90,8 +91,9 @@ def save_synthetic_data(name, metadata, dataset, synthetic_dataset, target_path:
 
 def main(args: dict):
     api_key = args.pop("swissai_api")
+    base_url = args.pop("base_url")
     model = args.pop("model")
-    client = openai.AsyncOpenAI(api_key=api_key, base_url="https://api.swissai.cscs.ch/v1")
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
     
     concurrency = args.pop("concurrency")
     semaphore = asyncio.Semaphore(concurrency)
