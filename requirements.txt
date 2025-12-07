@@ -1,0 +1,10 @@
+accelerate
+transformers
+langdetect
+six
+emoji
+nltk
+pythainlp
+pandas
+scipy
+openai
