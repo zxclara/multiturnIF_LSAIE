@@ -1,9 +1,14 @@
 # config.yaml
 
-model: Qwen/Qwen3-Next-80B-A3B-Instruct
+model: openai/gpt-oss-120b
 host: "0.0.0.0"
 port: 8080
 uvicorn-log-level: "info"
 tensor-parallel-size: 4
-gpu-memory-utilization: 0.9
+async-scheduling: true
+no-enable-prefix-caching: true
+max-num-seqs: 128
+gpu-memory-utilization: 0.85
+max-num-batched-tokens: 16384
+max-model-len: 32768
 seed: 42
