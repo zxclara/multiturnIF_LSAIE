@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import re
+from more_itertools import chunked
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -149,6 +150,46 @@ def append_jsonl(path: Path, data: Dict[str, Any]) -> None:
         f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
 
+async def stream_chat_with_postprocessing(client: AsyncOpenAI, sem, **kwargs):
+    async with sem:
+        content = ""
+        resp_id = None
+        finish_reason = None
+        usage_info = None
+        async with client.chat.completions.stream(**kwargs) as stream:
+            async for event in stream:
+                if event.type == "chunk":
+                    chunk = event.chunk
+                    if chunk.choices[0].delta.content is not None:
+                        content += chunk.choices[0].delta.content 
+                    if resp_id is None and getattr(chunk, "id", None):
+                        resp_id = chunk.id
+                    if usage_info is None and getattr(chunk, "usage", None):
+                        usage_info = {
+                            "prompt_tokens": getattr(chunk.usage, "prompt_tokens", None),
+                            "completion_tokens": getattr(chunk.usage, "completion_tokens", None),
+                            "total_tokens": getattr(chunk.usage, "total_tokens", None),
+                        }
+                    if finish_reason is None and getattr(chunk, "finish_reason", None):
+                        if hasattr(chunk, "choices") and len(chunk.choices) > 0:
+                            finish_reason = chunk.choices[0].finish_reason   
+    if not content.strip():
+        prompt_chars = sum(len(m.get("content", "")) for m in kwargs.get("messages", []) if isinstance(m, dict))
+        logging.warning(
+            "empty response content; id=%s finish_reason=%s usage=%s prompt_chars=%s max_tokens=%s type=%s",
+            resp_id,
+            finish_reason,
+            usage_info,
+            prompt_chars,
+            kwargs.get("max_tokens"),
+            kwargs.get("request_type"),
+        )
+        logging.debug("empty response raw content: %s", content)
+        raise RuntimeError(f"empty response content (id={resp_id}, finish_reason={finish_reason})")
+
+    return content
+
+
 async def call_chat(
     client: AsyncOpenAI,
     sem: asyncio.Semaphore,
@@ -186,40 +227,15 @@ async def call_chat(
     last_err: Optional[Exception] = None
     for attempt in range(config.MAX_RETRIES):
         try:
-            async with sem:
-                resp = await client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    timeout=timeout,
-                    max_tokens=max_tokens,
-                )
-            content = resp.choices[0].message.content or ""
-            if not content.strip():
-                finish_reason = getattr(resp.choices[0], "finish_reason", None)
-                resp_id = getattr(resp, "id", None)
-                usage = getattr(resp, "usage", None)
-                usage_info = None
-                if usage:
-                    usage_info = {
-                        "prompt_tokens": getattr(usage, "prompt_tokens", None),
-                        "completion_tokens": getattr(usage, "completion_tokens", None),
-                        "total_tokens": getattr(usage, "total_tokens", None),
-                    }
-                prompt_chars = sum(len(m.get("content", "")) for m in messages if isinstance(m, dict))
-                logging.warning(
-                    "empty response content; id=%s finish_reason=%s usage=%s prompt_chars=%s max_tokens=%s type=%s",
-                    resp_id,
-                    finish_reason,
-                    usage_info,
-                    prompt_chars,
-                    max_tokens,
-                    request_type,
-                )
-                logging.debug("empty response raw: %s", resp)
-                raise RuntimeError(
-                    f"empty response content (id={resp_id}, finish_reason={finish_reason})"
-                )
+            content = await stream_chat_with_postprocessing(
+                client=client,
+                sem=sem,
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                timeout=timeout,
+                max_tokens=max_tokens,
+            )
             return content
         except Exception as e:
             last_err = e
@@ -502,6 +518,8 @@ async def async_gen_trajectories(
     sem: asyncio.Semaphore,
     seeds: List[Dict[str, Any]],
     plans: List[Dict[str, Any]],
+    run_id: str,
+    dialogue_writer: AsyncJSONLWriter,
 ) -> List[Dict[str, Any]]:
     async def run_one(seed: Dict[str, Any], plan: Dict[str, Any], traj_idx: int) -> Dict[str, Any]:
         try:
@@ -530,14 +548,27 @@ async def async_gen_trajectories(
                 "score": 0.0,
                 "error": str(e),
             }
-
-    trajectories = await tqdm_asyncio.gather(
-        *[
-            run_one(seeds[plan["seed_idx"]], plan, traj_idx)
-            for plan in plans for traj_idx in range(config.TRAJECTORIES_PER_PLAN)
-        ], desc="Generating & Evaluating trajectories..."
-    )
+    trajectories = [ ]
+    tasks = [
+        (seeds[plan["seed_idx"]], plan, traj_idx)
+        for plan in plans for traj_idx in range(config.TRAJECTORIES_PER_PLAN)
+    ]
+    # Process tasks in chunks
+    for idx, chunk in enumerate(chunked(tasks, config.MAX_CONCURRENCY * 2)):
+        # Prepare coroutines for this chunk
+        coros = [run_one(seed, plan, traj_idx) for seed, plan, traj_idx in chunk]
+        # Run coroutines and collect results
+        results = await tqdm_asyncio.gather(
+            *coros, 
+            desc=f"Generating & Evaluating trajectories chunk {idx}..."
+        )
+        # Step 3: generate valid dialogues
+        cur_plans = [ plan for seed, plan, traj_idx in chunk ]
+        await async_gen_dialogues(run_id, seeds, cur_plans, results, dialogue_writer)
+        # Extend results
+        trajectories.extend(results)
     return trajectories
+
 
 async def async_gen_dialogues(
     run_id: str,
@@ -615,9 +646,9 @@ async def main() -> None:
     # clean asyncio queue and background coroutines
     await plan_writer.stop()
     # Step 2: generate trajectories
-    trajectories = await async_gen_trajectories(client, sem, seeds, plans)
-    # Step 3: generate valid dialogues
-    await async_gen_dialogues(run_id, seeds, plans, trajectories, dialogue_writer)
+    trajectories = await async_gen_trajectories(client, sem, seeds, plans, run_id, dialogue_writer)
+    # # Step 3: generate valid dialogues
+    # await async_gen_dialogues(run_id, seeds, plans, trajectories, dialogue_writer)
     # clean asyncio queue and background coroutines
     await dialogue_writer.stop()
 

@@ -1,14 +1,14 @@
 from pathlib import Path
 
 # API configuration
-PLANNER_BASE_URL = "http://172.28.36.128:8080/v1"
-RESPONDER_BASE_URL = "http://172.28.44.24:8080/v1"
-EVALUATOR_BASE_URL = "http://172.28.36.128:8080/v1"
+PLANNER_BASE_URL = "http://172.28.53.35:8080/v1"
+RESPONDER_BASE_URL = "http://172.28.36.52:8080/v1"
+EVALUATOR_BASE_URL = "http://172.28.36.44:8080/v1"
 API_KEY_ENV = "none"
 
 # Models
-PLANNER_MODEL = "openai/gpt-oss-120b" # w/o prefix caching
-RESPONDER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/ prefix caching
+PLANNER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
+RESPONDER_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
 EVALUATOR_MODEL = "openai/gpt-oss-120b" # w/o prefix caching
 
 # Generation knobs
