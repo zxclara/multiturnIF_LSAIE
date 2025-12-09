@@ -18,7 +18,7 @@ no-enable-chunked-prefill: true
 # cudagraph_mode: []  # disable CUDA graphs
 # swap-space: 32
 kv_cache_dtype: 'fp8'
-enable_prefix_caching: true
+enable_prefix_caching: false # Hybrid mdoel doesn't support
 
 max-num-batched-tokens: 32768 # 16384
 # disable-logstats: true

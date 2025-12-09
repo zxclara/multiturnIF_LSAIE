@@ -6,8 +6,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=4
 #SBATCH --time=01:59:59
-#SBATCH --output=/iopsstor/scratch/cscs/yanghao/project/log/serving/plev_%j.out
-#SBATCH --error=/iopsstor/scratch/cscs/yanghao/project/log/serving/plev_%j.err
+#SBATCH --output=/iopsstor/scratch/cscs/yanghao/project/log/serving/plan_%j.out
+#SBATCH --error=/iopsstor/scratch/cscs/yanghao/project/log/serving/plan_%j.err
 #SBATCH --environment=/iopsstor/scratch/cscs/yanghao/project/env/vllm_env.toml
 
 # Stop the script if a command fails or if an undefined variable is used
@@ -44,7 +44,7 @@ VLLM_CMD="
 vllm serve \
     --dtype auto \
     --pipeline-parallel-size ${SLURM_NNODES} \
-    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/gpt_oss_120b.yaml
+    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/qwen3_next_80b_instruct.yaml
 "
 CMD="
 # print current environment variables
@@ -52,9 +52,6 @@ echo \"[srun] rank=\$SLURM_PROCID host=\$(hostname) noderank=\$SLURM_NODEID loca
 
 # print vllm command
 echo \"VLLM_CMD: ${VLLM_CMD}\"
-
-# set TIKTOKEN_RS_CACHE_DIR
-export TIKTOKEN_RS_CACHE_DIR=/iopsstor/scratch/cscs/yanghao/project/configs/serving/
 
 # run the script at runtime
 bash -c '${VLLM_CMD}'
