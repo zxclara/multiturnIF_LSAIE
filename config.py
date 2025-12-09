@@ -1,15 +1,15 @@
 from pathlib import Path
 
 # API configuration
-PLANNER_BASE_URL = "http://172.28.53.35:8080/v1"
-RESPONDER_BASE_URL = "http://172.28.36.52:8080/v1"
-EVALUATOR_BASE_URL = "http://172.28.36.44:8080/v1"
+PLANNER_BASE_URL = "http://172.28.36.152:8080/v1"
+RESPONDER_BASE_URL = "http://172.28.33.48:8080/v1"
+EVALUATOR_BASE_URL = "http://172.28.34.144:8080/v1"
 API_KEY_ENV = "none"
 
 # Models
 PLANNER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
 RESPONDER_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
-EVALUATOR_MODEL = "openai/gpt-oss-120b" # w/o prefix caching
+EVALUATOR_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct"#"openai/gpt-oss-120b" # w/o prefix caching
 
 # Generation knobs
 PLANS_PER_SEED = 4
@@ -24,6 +24,7 @@ MAX_RETRIES = 4
 PLANNER_MAX_TOKENS = 4096
 PLANNER_PROMPT_MAX_CHARS = 24000
 FEWSHOT_MAX_CHARS = 8000
+EVALUATOR_MAX_TOKENS = 8000
 
 # Paths
 ROOT = Path(__file__).resolve().parent

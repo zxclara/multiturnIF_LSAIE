@@ -410,7 +410,7 @@ async def evaluate_trajectory(
         messages=messages,
         temperature=config.EVALUATOR_TEMPERATURE,
         timeout=config.DEFAULT_TIMEOUT,
-        max_tokens=config.MAX_TOKENS,
+        max_tokens=config.EVALUATOR_MAX_TOKENS,
         request_type="evaluator",
     )
     parsed = parse_json_maybe(content)
