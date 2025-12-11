@@ -1,21 +1,21 @@
 from pathlib import Path
 
 # API configuration
-PLANNER_BASE_URL = "http://172.28.36.152:8080/v1"
-RESPONDER_BASE_URL = "http://172.28.33.48:8080/v1"
-EVALUATOR_BASE_URL = "http://172.28.34.144:8080/v1"
+PLANNER_BASE_URL = "http://172.28.51.155:8080/v1"
+RESPONDER_BASE_URL = "http://172.28.52.255:8080/v1"
+EVALUATOR_BASE_URL = "http://172.28.39.140:8080/v1"
 API_KEY_ENV = "none"
 
 # Models
 PLANNER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
 RESPONDER_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
-EVALUATOR_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct"#"openai/gpt-oss-120b" # w/o prefix caching
+EVALUATOR_MODEL = "openai/gpt-oss-120b" # w/o prefix caching
 
 # Generation knobs
 PLANS_PER_SEED = 4
 TRAJECTORIES_PER_PLAN = 4
 PLAN_TURNS = 8
-SEEDS_PER_RUN = 128
+SEEDS_PER_RUN = 256
 
 PLANNER_TEMPERATURE = 0.9
 RESPONDER_TEMPERATURE = 0.7
@@ -43,15 +43,15 @@ MAX_CONCURRENCY = 128
 
 # Misc
 DEFAULT_TIMEOUT = 300
-MAX_TOKENS = 32768
+# MAX_TOKENS = 32768  # unused legacy knob
 RESPONDER_MAX_TOKENS = 2048
 RESPONDER_PROMPT_MAX_CHARS = 12000
 DATASET_ID = "allenai/tulu-3-sft-personas-instruction-following"
 FEWSHOT_DATASET_ID = "nmayorga7/multichallenge"
-FEWSHOT_SAMPLES = 2
+FEWSHOT_SAMPLES = 1
 
 # Prompt size toggles
-USE_TAXONOMY = False
-TAXONOMY_SAMPLE_RATIO = 0.1  # 1.0 = full text; e.g., 0.1 to sample ~10% segments
+# USE_TAXONOMY = False  # unused legacy toggle
+# TAXONOMY_SAMPLE_RATIO = 0.1  # unused legacy sampling ratio
 USE_FEWSHOT = True
 USE_AGENT_TEMPLATE = False

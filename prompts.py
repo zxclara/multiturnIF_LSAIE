@@ -3,11 +3,32 @@ import re
 import time
 from functools import lru_cache
 from textwrap import dedent
-from typing import List
+from typing import Dict, List, Optional
 
 from datasets import load_dataset, load_from_disk
 
 import config
+
+CATEGORY_ORDER = [
+    "Reliable Version Editing",
+    "Instruction Retention",
+    "Inference Memory",
+    "Self-Coherence",
+]
+
+CATEGORY_TO_AXIS = {
+    "Reliable Version Editing": "RELIABLE_VERSION_EDITING",
+    "Instruction Retention": "INSTRUCTION_RETENTION",
+    "Inference Memory": "INFERENCE_MEMORY",
+    "Self-Coherence": "SELF_COHERENCE",
+}
+
+CATEGORY_SHORT_DESC = {
+    "Reliable Version Editing": "integrate evolving instructions over the dialogue without dropping earlier directives",
+    "Instruction Retention": "uphold a specific instruction across all turns (tone/format/constraint/persona)",
+    "Inference Memory": "recall specific details from earlier turns and reuse them correctly later",
+    "Self-Coherence": "avoid contradictions across turns (numbers, facts, tone, policy, narrative consistency)",
+}
 
 CHALLENGE_DEFS = dedent(
     """
@@ -28,13 +49,16 @@ TRAP_GUIDE = dedent(
     """
 )
 
-PLANNER_SYSTEM = dedent(
-    """
-    You design 15-turn instruction-following challenge plans for long dialogues.
-    Goal: craft a realistic user-side question plan that subtly tests instruction-following, memory, and coherence.
-    Output JSON only. Do not include explanations outside JSON.
-    """
-)
+def build_planner_system(category_name: str) -> str:
+    desc = CATEGORY_SHORT_DESC.get(category_name, "").strip()
+    desc_line = f" (description: {desc})" if desc else ""
+    return dedent(
+        f"""
+        You design {config.PLAN_TURNS}-turn instruction-following challenge plans for long dialogues.
+        Goal: craft a realistic user-side question plan that subtly tests long-dialogue instruction-following; specifically, target Challenge Category: {category_name}{desc_line}.
+        Output JSON only. Do not include explanations outside JSON.
+        """
+    ).strip()
 
 CHALLENGE_TAXONOMY_SUMMARY = dedent(
     """
@@ -71,6 +95,45 @@ def _clean_tex_text(text: str) -> str:
 
 def clean_tex(path) -> str:
     return _clean_tex_text(path.read_text(encoding="utf-8"))
+
+
+@lru_cache()
+def load_taxonomy_categories() -> Dict[str, str]:
+    """
+    Return mapping {category_name: cleaned_text_section} parsed from taxonomy tex files.
+    """
+    categories: Dict[str, str] = {}
+    for path in config.TAXONOMY_FILES:
+        if not path.exists():
+            continue
+        cleaned = _clean_tex_text(path.read_text(encoding="utf-8"))
+        for match in re.finditer(
+            r"Challenge Category - ([^\n]+)\n(.*?)(?=Challenge Category - |\Z)",
+            cleaned,
+            flags=re.DOTALL,
+        ):
+            name = match.group(1).strip()
+            name = re.sub(r"[}]+$", "", name).strip()
+            body = match.group(2).strip()
+            body = body.replace("\\newline", "\n")
+            body = body.replace("newline", "\n")
+            body = re.sub(r"\[\d+\.?\d*em\]", "", body)
+            body = re.sub(r"\{\d+\}\{[^\}]+\}\{\{[^}]+\}\}", "", body)
+            body = body.replace("[t]{}{", "")
+            body = re.sub(r"\s*&\s*", " - ", body)
+            body = body.replace("{", "").replace("}", "")
+            body = re.sub(r"longtable[^\\n]*", "", body, flags=re.IGNORECASE)
+            body = re.sub(r"arraybackslash", "", body, flags=re.IGNORECASE)
+            body = "\n".join(
+                line
+                for line in body.splitlines()
+                if "ngtable" not in line and ">p" not in line and line.strip() != "1l"
+            )
+            body = re.sub(r"\n{3,}", "\n\n", body)
+            body = re.sub(r" +", " ", body)
+            body = body.strip()
+            categories[name] = body
+    return categories
 
 
 @lru_cache()
@@ -114,7 +177,7 @@ def format_fewshot_example(example: dict, idx: int) -> str:
 
 
 @lru_cache()
-def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES) -> str:
+def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES, axis: Optional[str] = None) -> str:
     local_path = config.HF_CACHE / "multichallenge"
     if local_path.exists():
         ds = load_from_disk(str(local_path))
@@ -124,6 +187,13 @@ def load_fewshot_text(k: int = config.FEWSHOT_SAMPLES) -> str:
             split="train",
             cache_dir=str(config.HF_CACHE),
         )
+    axis_filtered = ds
+    if axis:
+        axis_norm = axis.upper().replace(" ", "_")
+        axis_filtered = ds.filter(lambda ex: ex.get("AXIS", "").upper() == axis_norm)
+    if len(axis_filtered) == 0:
+        return ""
+    ds = axis_filtered
     total = len(ds)
     k = min(k, total)
     random.seed(int(time.time()))
@@ -143,44 +213,77 @@ def load_planner_template_text() -> str:
     return ""
 
 
+def category_to_axis(category_name: str) -> str:
+    if not category_name:
+        return ""
+    mapped = CATEGORY_TO_AXIS.get(category_name.strip())
+    if mapped:
+        return mapped
+    return category_name.upper().replace(" ", "_").replace("-", "_")
+
+
 def build_planner_user(
     seed_user: str,
     seed_assistant: str,
     plan_turns: int,
-    taxonomy_text: str,
+    category_name: str,
+    category_details: str,
     fewshot_text: str,
     planner_template: str,
+    switch_hint: bool = False,
 ) -> str:
-    taxonomy_section = ""
-    if config.USE_TAXONOMY and taxonomy_text:
-        taxonomy_section = f"\nTrap surfaces (sampled from appendix):\n{taxonomy_text}\n"
+    category_section = ""
+    if category_name:
+        details = category_details if category_details else "(no category details found in appendix)"
+        category_section = dedent(
+            f"""
+            Target Challenge Category: {category_name}
+            Sub-axes and guidance (from appendix):
+            {details}
+
+            Pick the most fitting subtopics in this category (describe them in English) and weave the user-side plan around them.
+            """
+        ).strip()
 
     fewshot_section = ""
     if config.USE_FEWSHOT and fewshot_text:
-        fewshot_section = f"\nFew-shot examples (axis, conversation, target question, pass criteria):\n{fewshot_text}\n"
+        fewshot_section = f"\nFew-shot examples (matching this challenge category):\n{fewshot_text}\n"
 
     template_section = ""
     if config.USE_AGENT_TEMPLATE and planner_template:
         template_section = f"\nReference planner prompt template (adapted from appendix, cleaned):\n{planner_template}\n"
 
+    switch_section = ""
+    if switch_hint:
+        switch_section = dedent(
+            """
+            Optional twist (use only if it helps design a subtle challenge):
+            You may briefly switch the dialogue mid-way to a few-shot-related topic for inspiration, then later return to the seed context.
+            """
+        ).strip()
+
     return dedent(
         f"""
-        Seed user message:
+        Dialogue can revolve around this seed context; you don't need to start with the exact same initial question. 
+        The seed assistant reply is contextual/background flavor, not a ground-truth answer. 
+        Feel free to open with a natural question inspired by the seed that best fits the chosen subtopics.
+
+        Seed user message (context):
         {seed_user}
 
-        Seed assistant reply (ground truth for context):
+        Seed assistant reply (context, not authoritative):
         {seed_assistant}
 
-        {CHALLENGE_DEFS}
+        {category_section}
 
         {TRAP_GUIDE}
 
-        {taxonomy_section}
         {fewshot_section}
         {template_section}
+        {switch_section}
 
         Requirements:
-        - Select exactly one challenge type (best fit for this seed).
+        - Use the target Challenge Category above; pick the most relevant subtopic(s) inside it and design around them.
         - Produce a realistic, context-linked user-side plan with {plan_turns} turns; questions must flow naturally (avoid rigid checklists), keep each question concise (<20 words).
         - Design a subtle trap: the plan should naturally surface the challenge without overt “tests”; keep trap/detection description concise.
         - Provide detection: how to tell the trap appears and whether it is triggered (observer criteria).

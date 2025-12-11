@@ -13,13 +13,15 @@ from openai import AsyncOpenAI
 
 import config
 from prompts import (
-    PLANNER_SYSTEM,
+    CATEGORY_ORDER,
     build_evaluator_prompt,
+    build_planner_system,
     build_planner_user,
     build_responder_system,
+    category_to_axis,
     load_fewshot_text,
     load_planner_template_text,
-    load_taxonomy_text,
+    load_taxonomy_categories,
 )
 
 
@@ -299,17 +301,22 @@ async def generate_plan(
     seed: Dict[str, Any],
     plan_idx: int,
     run_id: str,
-    taxonomy_text: str,
+    category_name: str,
+    category_details: str,
     fewshot_text: str,
     planner_template: str,
+    planner_system: str,
 ) -> Dict[str, Any]:
+    switch_hint = random.random() < 0.2
     user_msg = build_planner_user(
         seed["user"],
         seed["assistant"],
         config.PLAN_TURNS,
-        taxonomy_text,
+        category_name,
+        category_details,
         fewshot_text,
         planner_template,
+        switch_hint,
     )
     if len(user_msg) > config.PLANNER_PROMPT_MAX_CHARS:
         logging.info(
@@ -321,12 +328,14 @@ async def generate_plan(
             seed["user"],
             seed["assistant"],
             config.PLAN_TURNS,
-            taxonomy_text,
+            category_name,
+            category_details,
             "",  # drop fewshot
             "",  # drop template
+            switch_hint,
         )
     messages = [
-        {"role": "system", "content": PLANNER_SYSTEM},
+        {"role": "system", "content": planner_system},
         {"role": "user", "content": user_msg},
     ]
     content = await call_chat(
@@ -344,6 +353,7 @@ async def generate_plan(
     parsed.setdefault("trap_summary", "")
     parsed.setdefault("detection", "")
     parsed.setdefault("challenge_type", "")
+    parsed["twist"] = switch_hint
     if not parsed.get("questions"):
         raise RuntimeError("planner returned no questions (maybe truncated)")
     parsed["raw"] = content
@@ -445,6 +455,7 @@ def build_entry(
         "trap_summary": plan.get("trap_summary", ""),
         "plan_detection": plan.get("detection", ""),
         "plan_raw": plan.get("raw", ""),
+        "plan_twist": plan.get("twist", False),
         "messages": dialogue,
         "seed": {"user": seed["user"], "assistant": seed["assistant"]},
         "evaluation": evaluation,
@@ -463,20 +474,27 @@ async def process_seed(
     run_id: str,
     plans_path: Path,
     dialogues_path: Path,
-    taxonomy_text: str,
-    fewshot_text: str,
+    taxonomy_categories: Dict[str, str],
     planner_template: str,
 ) -> None:
+    category_order = CATEGORY_ORDER if CATEGORY_ORDER else ["Instruction Retention"]
     for plan_idx in range(config.PLANS_PER_SEED):
+        category_name = category_order[plan_idx % len(category_order)]
+        category_details = taxonomy_categories.get(category_name, "")
+        axis = category_to_axis(category_name)
+        fs_text = load_fewshot_text(axis=axis) if config.USE_FEWSHOT else ""
+        planner_system = build_planner_system(category_name)
         plan = await generate_plan(
             client,
             sem,
             seed,
             plan_idx,
             run_id,
-            taxonomy_text,
-            fewshot_text,
+            category_name,
+            category_details,
+            fs_text,
             planner_template,
+            planner_system,
         )
         append_jsonl(plans_path, {"seed": seed, "plan": plan})
         entries = []
@@ -548,8 +566,7 @@ async def main() -> None:
         raise RuntimeError(f"Missing API key env var {config.API_KEY_ENV}")
     client = AsyncOpenAI(base_url=config.BASE_URL, api_key=api_key)
     sem = asyncio.Semaphore(config.MAX_CONCURRENCY)
-    taxonomy_text = load_taxonomy_text() if config.USE_TAXONOMY else ""
-    fewshot_text = load_fewshot_text() if config.USE_FEWSHOT else ""
+    taxonomy_categories = load_taxonomy_categories()
     planner_template = load_planner_template_text() if config.USE_AGENT_TEMPLATE else ""
     seeds = load_seeds(config.SEEDS_PER_RUN)
     plans_path = config.PLANS_DIR / f"{run_id}.jsonl"
@@ -562,8 +579,7 @@ async def main() -> None:
             run_id,
             plans_path,
             dialogues_path,
-            taxonomy_text,
-            fewshot_text,
+            taxonomy_categories,
             planner_template,
         )
 

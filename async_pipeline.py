@@ -15,13 +15,15 @@ from tqdm.asyncio import tqdm_asyncio
 
 import config
 from prompts import (
-    PLANNER_SYSTEM,
+    CATEGORY_ORDER,
     build_evaluator_prompt,
+    build_planner_system,
     build_planner_user,
     build_responder_system,
+    category_to_axis,
     load_fewshot_text,
     load_planner_template_text,
-    load_taxonomy_text,
+    load_taxonomy_categories,
 )
 from utils import AsyncJSONLWriter
 
@@ -318,17 +320,22 @@ async def generate_plan(
     seed: Dict[str, Any],
     plan_idx: int,
     run_id: str,
-    taxonomy_text: str,
+    category_name: str,
+    category_details: str,
     fewshot_text: str,
     planner_template: str,
+    planner_system: str,
 ) -> Dict[str, Any]:
+    switch_hint = random.random() < 0.2
     user_msg = build_planner_user(
         seed["user"],
         seed["assistant"],
         config.PLAN_TURNS,
-        taxonomy_text,
+        category_name,
+        category_details,
         fewshot_text,
         planner_template,
+        switch_hint,
     )
     if len(user_msg) > config.PLANNER_PROMPT_MAX_CHARS:
         logging.info(
@@ -340,12 +347,14 @@ async def generate_plan(
             seed["user"],
             seed["assistant"],
             config.PLAN_TURNS,
-            taxonomy_text,
+            category_name,
+            category_details,
             "",  # drop fewshot
             "",  # drop template
+            switch_hint,
         )
     messages = [
-        {"role": "system", "content": PLANNER_SYSTEM},
+        {"role": "system", "content": planner_system},
         {"role": "user", "content": user_msg},
     ]
     content = await call_chat(
@@ -363,6 +372,7 @@ async def generate_plan(
     parsed.setdefault("trap_summary", "")
     parsed.setdefault("detection", "")
     parsed.setdefault("challenge_type", "")
+    parsed["twist"] = switch_hint
     if not parsed.get("questions"):
         raise RuntimeError("planner returned no questions (maybe truncated)")
     parsed["raw"] = content
@@ -464,6 +474,7 @@ def build_entry(
         "trap_summary": plan.get("trap_summary", ""),
         "plan_detection": plan.get("detection", ""),
         "plan_raw": plan.get("raw", ""),
+        "plan_twist": plan.get("twist", False),
         "messages": dialogue,
         "seed": {"user": seed["user"], "assistant": seed["assistant"]},
         "evaluation": evaluation,
@@ -480,37 +491,51 @@ async def async_gen_plans(
     sem: asyncio.Semaphore,
     seeds: List[Dict[str, Any]],
     run_id: str,
-    taxonomy_text: str,
-    fewshot_text: str,
+    taxonomy_categories: Dict[str, str],
     planner_template: str,
     plan_writer: AsyncJSONLWriter,
 ) -> List[Dict[str, Any]]:
+    category_order = CATEGORY_ORDER if CATEGORY_ORDER else ["Instruction Retention"]
+
+    async def make_plan(seed: Dict[str, Any], plan_idx: int) -> Dict[str, Any]:
+        category_name = category_order[plan_idx % len(category_order)]
+        category_details = taxonomy_categories.get(category_name, "")
+        axis = category_to_axis(category_name)
+        fs_text = (
+            load_fewshot_text(axis=axis)
+            if config.USE_FEWSHOT
+            else ""
+        )
+        planner_system = build_planner_system(category_name)
+        return await generate_plan(
+            client["planner"],
+            sem,
+            seed,
+            plan_idx,
+            run_id,
+            category_name,
+            category_details,
+            fs_text,
+            planner_template,
+            planner_system,
+        )
+
     # Step 1: generate plans
     plans = await tqdm_asyncio.gather(
-        *[
-            generate_plan(
-                client["planner"],
-                sem,
-                seed,
-                plan_idx,
-                run_id,
-                taxonomy_text,
-                fewshot_text,
-                planner_template,
-            )
-            for seed in seeds for plan_idx in range(config.PLANS_PER_SEED)
-        ], desc="Generating plans"
+        *[make_plan(seed, plan_idx) for seed in seeds for plan_idx in range(config.PLANS_PER_SEED)],
+        desc="Generating plans",
     )
-    # Step 2: dump plans
-    await tqdm_asyncio.gather(
-        *[ 
-            plan_writer.write({"seed": seed, "plan": plan}) 
-            for seed, plan in zip(seeds, plans) 
-        ], desc="Dumping plans"
-    )
-    # Step 3: record seed_id for trajectory & dialogue generation
+    # Step 2: record seed_idx for trajectory & dialogue generation
     for idx, plan in enumerate(plans):
         plan["seed_idx"] = idx // config.PLANS_PER_SEED
+    # Step 3: dump all plans (one entry per plan)
+    await tqdm_asyncio.gather(
+        *[
+            plan_writer.write({"seed": seeds[plan["seed_idx"]], "plan": plan})
+            for plan in plans
+        ],
+        desc="Dumping plans",
+    )
     return plans
 
 async def async_gen_trajectories(
@@ -625,8 +650,7 @@ async def main() -> None:
         "evaluator": AsyncOpenAI(base_url=config.EVALUATOR_BASE_URL, api_key=api_key)
     }
 
-    taxonomy_text = load_taxonomy_text() if config.USE_TAXONOMY else ""
-    fewshot_text = load_fewshot_text() if config.USE_FEWSHOT else ""
+    taxonomy_categories = load_taxonomy_categories()
     planner_template = load_planner_template_text() if config.USE_AGENT_TEMPLATE else ""
     seeds = load_seeds(config.SEEDS_PER_RUN)
     plans_path = config.PLANS_DIR / f"{run_id}.jsonl"
@@ -640,8 +664,14 @@ async def main() -> None:
     await dialogue_writer.start()
     
     # Step 1: generate plans
-    plans = await async_gen_plans(client, sem, seeds, run_id,
-        taxonomy_text, fewshot_text, planner_template, plan_writer,
+    plans = await async_gen_plans(
+        client,
+        sem,
+        seeds,
+        run_id,
+        taxonomy_categories,
+        planner_template,
+        plan_writer,
     )
     # clean asyncio queue and background coroutines
     await plan_writer.stop()

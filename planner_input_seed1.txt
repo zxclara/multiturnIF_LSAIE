@@ -1,0 +1,258 @@
+Planner input snapshot (config.SEEDS_PER_RUN=1; example uses plan_idx=0, Challenge Category=Reliable Version Editing, AXIS=RELIABLE_VERSION_EDITING; switch_hint forced to True to show the topic-switch instruction)
+    seed source_id: personas_IF_1s84skm7dqifreqgvsgzyxdf
+    plan_turns: 8, plans_per_seed: 4, trajectories_per_plan: 4
+    category rotation order: Reliable Version Editing, Instruction Retention, Inference Memory, Self-Coherence
+
+    --- Planner system message ---
+    You design 8-turn instruction-following challenge plans for long dialogues.
+Goal: craft a realistic user-side question plan that subtly tests long-dialogue instruction-following; specifically, target Challenge Category: Reliable Version Editing (description: integrate evolving instructions over the dialogue without dropping earlier directives).
+Output JSON only. Do not include explanations outside JSON.
+
+    --- Planner user message ---
+    Dialogue can revolve around this seed context; you don't need to start with the exact same initial question. 
+        The seed assistant reply is contextual/background flavor, not a ground-truth answer. 
+        Feel free to open with a natural question inspired by the seed that best fits the chosen subtopics.
+
+        Seed user message (context):
+        Provide a detailed analysis of Candace Parker's defensive techniques in her recent games, excluding the words "aggressive" and "blocking", in the format of a sports commentary script.
+
+        Seed assistant reply (context, not authoritative):
+        [Sports Commentary Script]
+
+[Opening Scene: A packed basketball arena, with fans eagerly awaiting the analysis of Candace Parker’s recent performances on the court.]
+
+Commentator 1: Welcome back, basketball fans! Tonight, we're diving into the defensive prowess of Candace Parker, who has been a standout in her recent games. Her ability to impact the game on the defensive end is truly remarkable, and we've got a lot to unpack.
+
+Commentator 2: That's right! Candace has been showcasing some exceptional skills, especially in how she reads the game. Her anticipation is second to none. You can see it in how she positions herself, almost like she knows the opposing team's playbook by heart.
+
+Commentator 1: Exactly, and what stands out is her footwork. She's always in the right place at the right time, cutting off passing lanes and disrupting the flow of the offense. It’s like she’s orchestrating the defense, a step ahead of everyone else.
+
+Commentator 2: And we can't forget her hands! Parker is adept at using them to tip passes and force turnovers. The way she can strip the ball from opponents is a testament to her quick reflexes and timing.
+
+Commentator 1: Let’s not overlook her communication on the court. She’s constantly directing her teammates, coordinating switches, and ensuring everyone is aware of their assignments. This leadership is crucial, providing structure and cohesion to the team's defensive efforts.
+
+Commentator 2: Absolutely, her impact is felt beyond the stat sheet. Her presence alone alters shots, as opponents are wary of challenging her inside presence. It’s a psychological edge that benefits her entire squad.
+
+Commentator 1: Candace Parker continues to demonstrate why she's one of the most versatile defenders in the league. Her combination of intelligence, skill, and experience makes her an invaluable asset on defense.
+
+Commentator 2: It's always a treat to watch her play, and we’re excited to see what she brings in the upcoming games. Stay tuned for more insights and analysis after the break!
+
+[Closing Scene: The commentators smile at each other as the camera pans to highlights of Parker’s recent defensive plays, illustrating her effectiveness on the court.]
+
+        Target Challenge Category: Reliable Version Editing
+            Sub-axes and guidance (from appendix):
+            Topic - Subtopics 
+
+
+
+
+Topic - Subtopics 
+
+
+
+
+
+Technical - Code : Iteratively improve code by enhancing performance, fixing bugs, refactoring for readability, and adding error handling;
+
+ Technical Documents : Improve technical documents by refining explanations, improving readability, and ensuring accuracy in complex information;
+
+ Instruction Manuals: Improve instruction manuals by refining step-by-step directions, simplifying language, and enhancing usability;
+
+ SOPs: Refine Standard Operating Procedures (SOPs) by improving clarity, ensuring compliance, and simplifying steps
+
+
+Writing And Content - Writing: Refine written content such as emails, reports, essays, or articles by improving clarity, tone, structure, and grammar;
+
+ Creative Writing: Enhance creative works like stories, poems, or scripts by refining narrative flow, character development, pacing, and dialogue;
+
+ Blog Posts: Improve blog posts by enhancing readability, refining structure, and aligning content with audience interests and SEO best practices;
+
+ Speech Or Script: Refine speeches or scripts for events or media, improving pacing, tone, and effectiveness of key points
+
+
+Communication - Email Drafts: Improve email drafts by adjusting tone, clarity, and persuasiveness for professional, formal, or personal communications;
+
+ Memos: Improve memos by refining tone, clarifying key points, and ensuring effective communication of information or directives;
+
+ Customer Service Responses: Refine customer service responses by improving tone, ensuring clarity, and addressing customer concerns effectively
+
+
+Design And Presentation - Presentations: Enhance presentations by refining structure, flow, clarity of content, and visual appeal of slides;
+
+ Website Copies: Improve website copy by enhancing readability, optimizing for SEO, and aligning messaging with target audience;
+
+ Advertisement Copies: Improve ad copy for digital or print ads by refining messaging, enhancing call-to-action, and targeting specific audiences;
+
+ Slogans Or Taglines: Enhance slogans or taglines by refining wording for memorability, clarity, and alignment with brand identity
+
+
+Planning And Strategy - Itineraries: Optimize travel or event itineraries, refining schedules, logistics, and activities to better suit preferences and goals;
+
+ Project Plans: Refine project plans by improving task breakdown, timelines, resource allocation, and ensuring alignment with objectives;
+
+ Budgets: Improve personal or business budgets by refining expense tracking, reallocating resources, and optimizing for financial goals;
+
+ Business Proposals: Improve business proposals by refining structure, enhancing persuasive elements, and ensuring alignment with client needs
+
+
+Professional And Career - Resume Or CVs: Refine resumes or CVs to improve formatting, content structure, and highlight key skills or experiences more effectively;
+
+ Job Descriptions: Enhance job descriptions by improving clarity, required qualifications, and ensuring alignment with role expectations;
+
+ Resume Summaries: Improve the summary section of a resume, making it concise, impactful, and tailored to specific job roles;
+
+ LinkedIn Profiles: Refine LinkedIn or other professional online profiles by enhancing descriptions, showcasing skills, and improving engagement
+
+
+Learning And Development - Study Plans: Refine study plans or schedules by optimizing time management, adjusting for learning goals, and improving content focus;
+
+ Workshop Outlines: Enhance workshop outlines by refining structure, improving time allocation, and ensuring clarity in learning objectives;
+
+ Workshop Material: Enhance workshop materials by improving content flow, ensuring alignment with learning objectives, and refining engagement techniques;
+
+ Learning Modules: Improve educational learning modules by refining content structure, enhancing engagement, and aligning with learning outcomes
+
+
+Research And Documentation - Survey Or Forms: Enhance surveys or forms by improving question clarity, response options, and aligning with data collection goals;
+
+ Grant Proposals: Refine grant proposals by enhancing the persuasiveness of the request, aligning with funding guidelines, and improving clarity;
+
+ Financial Reports: Improve financial reports by refining clarity, highlighting key insights, and ensuring accurate data presentation;
+
+ Public Policy Proposals: Refine policy proposals by improving clarity, structuring arguments logically, and addressing stakeholder concerns
+
+
+Customer And User Experience - Customer Surveys: Improve customer surveys by refining questions, ensuring clarity, and aligning with the goals of feedback collection;
+
+ User Manual Or Guides: Improve user manuals or guides by refining instructions, adding clarity, and making them easier to navigate;
+
+ Product Features: Refine product features by enhancing usability, improving design, and ensuring alignment with user feedback;
+
+ FAQs: Refine Frequently Asked Questions (FAQ) sections by improving clarity, addressing common concerns, and simplifying explanations
+
+
+Event And Content Planning - Event Schedules: Refine event schedules by optimizing time management, improving logistics, and ensuring alignment with event goals;
+
+ Webinar Content: Refine webinar content by improving clarity, pacing, and audience engagement strategies;
+
+ Book Outlines: Improve book outlines by refining chapter structure, clarifying themes, and enhancing overall flow of ideas;
+
+ Video Scripts: Improve video scripts by refining dialogue, enhancing pacing, and ensuring clear messaging for the intended audience
+
+            Pick the most fitting subtopics in this category (describe them in English) and weave the user-side plan around them.
+
+
+Trap design guidance (instruction-following oriented):
+- Embed the trap naturally in a realistic multi-turn dialogue; avoid adversarial or explicit “tests”.
+- The trap should be detectable in later assistant replies (trigger vs avoid is observable).
+- Align with long-form skills: instruction adherence, memory, coherence, evolving requirements.
+
+
+
+Few-shot examples (matching this challenge category):
+Example 1 (AXIS=RELIABLE_VERSION_EDITING):
+        Conversation (natural flow):
+        USER: I need to fire some people, but I'd like them to jump before I have to push, if you know what I mean. So please help me write a memo for my failing advertising firm that lets the staff know we are in trouble, cuts will have to be made unless some members want to take an exit package worth six-months salary and insurance coverage for one full year.  Be regretful but direct. Thank you.
+
+
+ASSISTANT: Subject: Important Update on Our Company's Current Situation and Future Outlook
+
+Dear Team,
+
+I hope this message finds you well. I am writing to share some difficult news that affects us all. As you know, our advertising firm has been facing numerous challenges recently, and despite our collective efforts, we find ourselves in a position that requires decisive action.
+
+Over the past few months, we have experienced a significant decline in our revenue due to various factors, including increased competition, changing market dynamics, and the ongoing global economic situation. Despite our best attempts to adapt and innovate, we have not been able to achieve the financial stability necessary to sustain our current operations and staffing levels.
+
+It is with a heavy heart that I must inform you that we are considering making some difficult decisions to ensure the long-term viability of our company. These decisions may include staff reductions, which we understand will have a profound impact on those affected and their families.
+
+However, before we proceed with any layoffs, we want to offer an alternative for those who may be considering a change in their career path. We are introducing a voluntary separation package for employees who wish to pursue other opportunities. This package includes six months' salary and one year of insurance coverage, providing a financial cushion and peace of mind during this transition.
+
+Please understand that this is a voluntary program, and there will be no negative consequences for those who choose not to participate. We value each and every one of our employees, and we recognize the hard work and dedication that you bring to our company every day.
+
+We will be holding a series of meetings over the next few days to provide more information about this program and to answer any questions you may have. In the meantime, please feel free to reach out to your manager or HR representative if you have any immediate concerns.
+
+I want to express my deepest gratitude for your understanding and cooperation during this challenging time. I am confident that, together, we can navigate these difficulties and emerge stronger on the other side.
+
+Thank you for your continued dedication and commitment to our company.
+
+Sincerely,
+
+\[Your Name\] \[Your Position\]
+USER: The message is good but wordy. Let's keep the memo to 300 words or under. Add my name, Jane Smith, President. Also stress that the program is for anyone, but we urge those close to retirement or new employees to give it a good look. It may offer them the best protection in this situation. 
+ASSISTANT: Subject: Urgent: Voluntary Separation Program Announcement
+
+Dear Team,
+
+I regret to inform you that our advertising firm is facing significant financial challenges. To ensure our long-term viability, we must consider staff reductions. However, before proceeding with layoffs, we are offering a voluntary separation program.
+
+This program includes six months' salary and one year of insurance coverage. It is open to all employees, but we strongly encourage those close to retirement or new employees to consider this option for their best protection.
+
+Please understand that this is a voluntary program, and there will be no negative consequences for those who choose not to participate. We value your hard work and dedication.
+
+We will hold meetings to provide more information and answer questions. In the meantime, please reach out to your manager or HR representative with any immediate concerns.
+
+Thank you for your understanding and cooperation during this challenging time.
+
+Sincerely,
+
+Jane Smith President
+USER: I think this memo may blindside some people. Let's add some information explaining that even two months ago, things were holding steady. But the lost of two major clients at the same  time put us on shaky ground. Then two new advertising firms opened, making the competition extremely difficult. I in no may wanted to surprise them with this bad news. Can you change the title to include the phrase "Necessary Changes"?
+ASSISTANT: Subject: Necessary Changes: Urgent Update on Our Company's Financial Situation
+
+Dear Team,
+
+I hope this message finds you well. I am writing to share some difficult news that affects us all. Just two months ago, our advertising firm was holding steady. However, the recent loss of two major clients and the opening of two new advertising firms in our area have put us on shaky ground. Despite our best efforts to adapt and innovate, we have not been able to achieve the financial stability necessary to sustain our current operations and staffing levels.
+
+It is with a heavy heart that I must inform you that we are considering making some difficult decisions to ensure the long-term viability of our company. These decisions may include staff reductions, which we understand will have a profound impact on those affected and their families.
+
+However, before we proceed with any layoffs, we want to offer an alternative for those who may be considering a change in their career path. We are introducing a voluntary separation package for employees who wish to pursue other opportunities. This package includes six months' salary and one year of insurance coverage, providing a financial cushion and peace of mind during this transition.
+
+Please understand that this is a voluntary program, and there will be no negative consequences for those who choose not to participate. We value each and every one of our employees, and we recognize the hard work and dedication that you bring to our company every day.
+
+We will be holding a series of meetings over the next few days to provide more information about this program and to answer any questions you may have. In the meantime, please feel free to reach out to your manager or HR representative if you have any immediate concerns.
+
+I want to express my deepest gratitude for your understanding and cooperation during this challenging time. I am confident that, together, we can navigate these difficulties and emerge stronger on the other side.
+
+Thank you for your continued dedication and commitment to our company.
+
+Sincerely,
+
+Jane Smith President
+USER: Yes, this is good but it's gotten too wordy again. Also, add a line that we are seeking suggestions to help turn the company around. We have not surrendered yet. Make the tone a little more hopeful.
+ASSISTANT: Subject: Necessary Changes: Urgent Update on Our Company's Financial Situation
+
+Dear Team,
+
+I hope this message finds you well. I am writing to share some difficult news that affects us all. Just two months ago, our advertising firm was holding steady. However, the recent loss of two major clients and the opening of two new advertising firms in our area have put us on shaky ground. Despite our best efforts to adapt and innovate, we have not been able to achieve the financial stability necessary to sustain our current operations and staffing levels.
+
+However, we want to offer an alternative to layoffs for those who may be considering a change in their career path. We are introducing a voluntary separation package for employees who wish to pursue other opportunities. This package includes six months' salary and one year of insurance coverage, providing a financial cushion and peace of mind during this transition.
+
+Please understand that this is a voluntary program, and there will be no negative consequences for those who choose not to participate. We value each and every one of our employees, and we recogni
+
+
+        Optional twist (use only if it helps design a subtle challenge):
+You may briefly switch the dialogue mid-way to a few-shot-related topic for inspiration, then later return to the seed context.
+
+        Requirements:
+        - Use the target Challenge Category above; pick the most relevant subtopic(s) inside it and design around them.
+        - Produce a realistic, context-linked user-side plan with 8 turns; questions must flow naturally (avoid rigid checklists), keep each question concise (<20 words).
+        - Design a subtle trap: the plan should naturally surface the challenge without overt “tests”; keep trap/detection description concise.
+        - Provide detection: how to tell the trap appears and whether it is triggered (observer criteria).
+
+        Return a JSON object with keys:
+        {
+          "challenge_type": "<one of: Inference Memory | Instruction Retention | Reliable Version Editing | Self-Coherence>",
+          "trap_summary": "<brief description of the trap and success/fail criteria>",
+          "questions": ["turn1 user message", ..., "turn8 user message"],
+          "detection": "<how to check trap presence and triggering>",
+          "notes": "<other evaluation details if any>"
+        }
+
+Notes (English)
+1) Entry point: async_pipeline.main() builds run_id (timestamp), setup_logging writes logs to logs/<run_id>.log, ensure_dirs creates hfdata/generated/logs.
+2) Clients & concurrency: reads env none for API key; builds planner/responder/evaluator AsyncOpenAI clients with base_url from config. Uses asyncio.Semaphore(128) and call_chat with up to 4 retries (exponential backoff) and streaming collection; empty content raises.
+3) Data: load_seeds pulls first SEEDS_PER_RUN seeds from allenai/tulu-3-sft-personas-instruction-following; seed assistant is just context, not ground truth. Few-shot (if enabled) is filtered by category axis (here RELIABLE_VERSION_EDITING), samples=1, truncated to 8000 chars.
+4) Category rotation: per seed, plan_idx cycles through Reliable Version Editing, Instruction Retention, Inference Memory, Self-Coherence; for each plan we inject that category’s appendix details from appendix_items/topic_heirarchical_tax.tex.
+5) Planner prompt: system message states the target Challenge Category plus its one-line description; user prompt clarifies conversation can revolve around the seed context without repeating the exact question; optional 50% hint allows a brief mid-dialog switch to few-shot topics then back. Parsed JSON is stored with raw text, plan_idx, run_id.
+6) Trajectories & eval: each plan generates 4 dialogues; responder uses zai-org/GLM-4.5-Air-FP8 (temp 0.7, max_tokens 2048) with history trimmed to 12000 chars; evaluator uses openai/gpt-oss-120b (temp 0.3, max_tokens 8000) and compute_score sums four subscores.
+7) Selection & writes: async_gen_dialogues groups by plan, marks top-2 with trap_present=true and trap_triggered=false as selected. generated/plans writes every plan; generated/dialogues writes all trajectories.
