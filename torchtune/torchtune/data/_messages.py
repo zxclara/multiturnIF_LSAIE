@@ -889,6 +889,9 @@ class IFToMessages(Transform):
                 "train_on_all" if train_on_input else "train_on_assistant"
             )
         self.masking_strategy = masking_strategy
+        warn(
+            f"current masking_strategy: {self.masking_strategy}"
+        )
         self._column_map = {
             "messages": "messages",
             "constraints": "constraints",

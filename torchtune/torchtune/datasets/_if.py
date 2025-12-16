@@ -20,7 +20,8 @@ def if_dataset(
     tokenizer: ModelTokenizer,
     *,
     source: str = "allenai/tulu-3-sft-personas-instruction-following",
-    train_on_input: bool = True,
+    train_on_input: bool|None = None,
+    masking_strategy: str = "train_on_all",
     packed: bool = False,
     filter_fn: Optional[Callable] = None,
     split: str = "train",
@@ -69,7 +70,8 @@ def if_dataset(
     """
 
     message_transform = IFToMessages(
-        train_on_input=train_on_input
+        train_on_input=train_on_input,
+        masking_strategy=masking_strategy,
     )
     ds = SFTDataset(
         source=source,
