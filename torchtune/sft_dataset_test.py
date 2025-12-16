@@ -806,15 +806,22 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         map-style datasets. If a state_dict is provided (meaning we are resuming a training run),
         it is loaded into the dataloader.
         """
+        # add filter
+        filter_fn = (lambda example: example["selected"] == True)
         if isinstance(cfg_dataset, ListConfig):
+            self._logger.info(f"dataset list is hit...")
+            for single_cfg_dataset in cfg_dataset:
+                self._logger.info(f"filter_fn: {(filter_fn if single_cfg_dataset.get("filter_fn", False) else None)}")
             datasets = [
-                config.instantiate(single_cfg_dataset, self._tokenizer)
+                config.instantiate(single_cfg_dataset, self._tokenizer, 
+                                   filter_fn=(filter_fn if single_cfg_dataset.get("filter_fn", False) else None))
                 for single_cfg_dataset in cfg_dataset
             ]
             ds = ConcatDataset(datasets=datasets)
             packed = getattr(ds, "packed", False)
         else:
-            ds = config.instantiate(cfg_dataset, self._tokenizer)
+            ds = config.instantiate(cfg_dataset, self._tokenizer, 
+                                    filter_fn=(filter_fn if cfg_dataset.get("filter_fn", False) else None))
             packed = cfg_dataset.get("packed", False)
 
         # Instantiate collate_fn
