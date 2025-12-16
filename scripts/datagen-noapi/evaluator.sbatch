@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=4
-#SBATCH --time=01:59:59
+#SBATCH --time=11:59:59
 #SBATCH --output=/iopsstor/scratch/cscs/yanghao/project/log/serving/eval_%j.out
 #SBATCH --error=/iopsstor/scratch/cscs/yanghao/project/log/serving/eval_%j.err
 #SBATCH --environment=/iopsstor/scratch/cscs/yanghao/project/env/vllm_env.toml
