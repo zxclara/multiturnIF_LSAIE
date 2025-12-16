@@ -1,5 +1,7 @@
 import asyncio
 import json
+import yaml
+import argparse
 import logging
 import os
 import random
@@ -25,6 +27,8 @@ from prompts import (
     load_taxonomy_categories,
 )
 from utils import AsyncJSONLWriter
+
+model_cfg = None
 
 def ensure_dirs() -> None:
     for path in [
@@ -370,7 +374,7 @@ async def generate_plan(
         content = await call_chat(
             client,
             sem,
-            model=config.PLANNER_MODEL,
+            model=model_cfg['PLANNER_MODEL'],
             messages=messages,
             temperature=config.PLANNER_TEMPERATURE,
             timeout=config.DEFAULT_TIMEOUT,
@@ -412,7 +416,7 @@ async def run_responder(
             await call_chat(
                 client,
                 sem,
-                model=config.RESPONDER_MODEL,
+                model=model_cfg['RESPONDER_MODEL'],
                 messages=trimmed_history,
                 temperature=config.RESPONDER_TEMPERATURE,
                 timeout=config.DEFAULT_TIMEOUT,
@@ -449,7 +453,7 @@ async def evaluate_trajectory(
     content = await call_chat(
         client,
         sem,
-        model=config.EVALUATOR_MODEL,
+        model=model_cfg['EVALUATOR_MODEL'],
         messages=messages,
         temperature=config.EVALUATOR_TEMPERATURE,
         timeout=config.DEFAULT_TIMEOUT,
@@ -481,9 +485,9 @@ def build_entry(
         "plan_idx": plan_idx,
         "traj_idx": traj_idx,
         "run_id": run_id,
-        "planner_model": config.PLANNER_MODEL,
-        "responder_model": config.RESPONDER_MODEL,
-        "evaluator_model": config.EVALUATOR_MODEL,
+        "planner_model": model_cfg['PLANNER_MODEL'],
+        "responder_model": model_cfg['RESPONDER_MODEL'],
+        "evaluator_model": model_cfg['EVALUATOR_MODEL'],
         "challenge_type": plan.get("challenge_type", ""),
         "trap_summary": plan.get("trap_summary", ""),
         "plan_detection": plan.get("detection", ""),
@@ -521,7 +525,7 @@ async def async_gen_plans(
             if config.USE_FEWSHOT
             else ""
         )
-        planner_system = build_planner_system(category_name)
+        planner_system = build_planner_system(category_name, turns)
         return await generate_plan(
             client["planner"],
             sem,
@@ -662,6 +666,13 @@ async def async_gen_dialogues(
     )
 
 async def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", type=str, required=True, help="Path to file")
+    args = parser.parse_args()
+    with open(args.path, "r") as f:
+        global model_cfg
+        model_cfg = yaml.safe_load(f)
+
     run_id = datetime.now(UTC).strftime("run_%Y%m%d_%H%M%S")
     setup_logging(run_id)
     ensure_dirs()
@@ -669,9 +680,9 @@ async def main() -> None:
     if not api_key:
         raise RuntimeError(f"Missing API key env var {config.API_KEY_ENV}")
     client = {
-        "planner": AsyncOpenAI(base_url=config.PLANNER_BASE_URL, api_key=api_key),
-        "responder": AsyncOpenAI(base_url=config.RESPONDER_BASE_URL, api_key=api_key),
-        "evaluator": AsyncOpenAI(base_url=config.EVALUATOR_BASE_URL, api_key=api_key)
+        "planner":   AsyncOpenAI(base_url=model_cfg['PLANNER_BASE_URL'],   api_key=api_key),
+        "responder": AsyncOpenAI(base_url=model_cfg['RESPONDER_BASE_URL'], api_key=api_key),
+        "evaluator": AsyncOpenAI(base_url=model_cfg['EVALUATOR_BASE_URL'], api_key=api_key)
     }
 
     taxonomy_categories = load_taxonomy_categories()

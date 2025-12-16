@@ -49,12 +49,12 @@ TRAP_GUIDE = dedent(
     """
 )
 
-def build_planner_system(category_name: str) -> str:
+def build_planner_system(category_name: str, turns: int) -> str:
     desc = CATEGORY_SHORT_DESC.get(category_name, "").strip()
     desc_line = f" (description: {desc})" if desc else ""
     return dedent(
         f"""
-        You design {config.PLAN_TURNS}-turn instruction-following challenge plans for long dialogues.
+        You design {turns}-turn instruction-following challenge plans for long dialogues.
         Goal: craft a realistic user-side question plan that subtly tests long-dialogue instruction-following; specifically, target Challenge Category: {category_name}{desc_line}.
         Output JSON only. Do not include explanations outside JSON.
         """
