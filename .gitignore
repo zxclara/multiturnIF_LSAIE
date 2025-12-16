@@ -1,5 +1,6 @@
 *.jsonl
 *.json
 *.log
+*.sbatch
 hfdata/
 __pycache__/

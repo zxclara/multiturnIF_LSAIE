@@ -4,7 +4,6 @@ import logging
 import os
 import random
 import re
-from more_itertools import chunked
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -136,14 +135,22 @@ def load_seeds(limit: int) -> List[Dict[str, Any]]:
         split="train",
         cache_dir=str(config.HF_CACHE),
     )
+    # randomly replace the first `limit` seeds
     seeds = []
+    seen = 0
     for idx, rec in enumerate(ds):
         seed = extract_seed(rec, idx)
-        if seed:
+        if not seed:
+            continue
+        seen += 1
+        if len(seeds) < limit:
             seeds.append(seed)
-        if len(seeds) >= limit:
-            break
+        else:
+            j = random.randint(0, seen - 1)
+            if j < limit:
+                seeds[j] = seed
     logging.info("Loaded %d seeds (limit=%d)", len(seeds), limit)
+    logging.info(f"First seed: {seeds[0]['source_id']}\nLast seed: {seeds[-1]['source_id']}")
     return seeds
 
 
@@ -319,6 +326,7 @@ async def generate_plan(
     sem: asyncio.Semaphore,
     seed: Dict[str, Any],
     plan_idx: int,
+    turns: int,
     run_id: str,
     category_name: str,
     category_details: str,
@@ -330,7 +338,7 @@ async def generate_plan(
     user_msg = build_planner_user(
         seed["user"],
         seed["assistant"],
-        config.PLAN_TURNS,
+        turns,
         category_name,
         category_details,
         fewshot_text,
@@ -346,7 +354,7 @@ async def generate_plan(
         user_msg = build_planner_user(
             seed["user"],
             seed["assistant"],
-            config.PLAN_TURNS,
+            turns,
             category_name,
             category_details,
             "",  # drop fewshot
@@ -357,28 +365,33 @@ async def generate_plan(
         {"role": "system", "content": planner_system},
         {"role": "user", "content": user_msg},
     ]
-    content = await call_chat(
-        client,
-        sem,
-        model=config.PLANNER_MODEL,
-        messages=messages,
-        temperature=config.PLANNER_TEMPERATURE,
-        timeout=config.DEFAULT_TIMEOUT,
-        max_tokens=config.PLANNER_MAX_TOKENS,
-        request_type="planner",
-    )
-    parsed = parse_json_maybe(content)
-    parsed.setdefault("questions", [])
-    parsed.setdefault("trap_summary", "")
-    parsed.setdefault("detection", "")
-    parsed.setdefault("challenge_type", "")
-    parsed["twist"] = switch_hint
-    if not parsed.get("questions"):
-        raise RuntimeError("planner returned no questions (maybe truncated)")
-    parsed["raw"] = content
-    parsed["plan_idx"] = plan_idx
-    parsed["run_id"] = run_id
-    return parsed
+    questions = None
+    while questions is None:
+        content = await call_chat(
+            client,
+            sem,
+            model=config.PLANNER_MODEL,
+            messages=messages,
+            temperature=config.PLANNER_TEMPERATURE,
+            timeout=config.DEFAULT_TIMEOUT,
+            max_tokens=config.PLANNER_MAX_TOKENS,
+            request_type="planner",
+        )
+        parsed = parse_json_maybe(content)
+        questions = parsed.get("questions", None)
+        if questions is None:
+            continue
+        parsed.setdefault("questions", [])
+        parsed.setdefault("trap_summary", "")
+        parsed.setdefault("detection", "")
+        parsed.setdefault("challenge_type", "")
+        parsed["twist"] = switch_hint
+        # if not parsed.get("questions"):
+        #     raise RuntimeError("planner returned no questions (maybe truncated)")
+        parsed["raw"] = content
+        parsed["plan_idx"] = plan_idx
+        parsed["run_id"] = run_id
+        return parsed
 
 
 async def run_responder(
@@ -387,11 +400,12 @@ async def run_responder(
     seed: Dict[str, Any],
     plan: Dict[str, Any],
     traj_idx: int,
+    turns: int,
 ) -> List[Dict[str, str]]:
     system_msg = build_responder_system(seed["assistant"])
     history: List[Dict[str, str]] = [{"role": "system", "content": system_msg}]
     dialogue: List[Dict[str, str]] = []
-    for q in plan.get("questions", [])[: config.PLAN_TURNS]:
+    for q in plan.get("questions", [])[: turns]:
         history.append({"role": "user", "content": q})
         trimmed_history = trim_messages_by_chars(history, config.RESPONDER_PROMPT_MAX_CHARS)
         answer = (
@@ -490,6 +504,7 @@ async def async_gen_plans(
     client: Dict[str, AsyncOpenAI],
     sem: asyncio.Semaphore,
     seeds: List[Dict[str, Any]],
+    plan_turns: List[int],
     run_id: str,
     taxonomy_categories: Dict[str, str],
     planner_template: str,
@@ -497,7 +512,7 @@ async def async_gen_plans(
 ) -> List[Dict[str, Any]]:
     category_order = CATEGORY_ORDER if CATEGORY_ORDER else ["Instruction Retention"]
 
-    async def make_plan(seed: Dict[str, Any], plan_idx: int) -> Dict[str, Any]:
+    async def make_plan(seed: Dict[str, Any], plan_idx: int, turns: int) -> Dict[str, Any]:
         category_name = category_order[plan_idx % len(category_order)]
         category_details = taxonomy_categories.get(category_name, "")
         axis = category_to_axis(category_name)
@@ -512,6 +527,7 @@ async def async_gen_plans(
             sem,
             seed,
             plan_idx,
+            turns,
             run_id,
             category_name,
             category_details,
@@ -519,10 +535,15 @@ async def async_gen_plans(
             planner_template,
             planner_system,
         )
-
+    seed_plan_list = [ 
+        (seed, plan_idx) for seed in seeds for plan_idx in range(config.PLANS_PER_SEED) 
+    ]
+    seed_plan_turns = [ 
+        (seed_plan[0], seed_plan[1], turns) for seed_plan, turns in zip(seed_plan_list, plan_turns) 
+    ]
     # Step 1: generate plans
     plans = await tqdm_asyncio.gather(
-        *[make_plan(seed, plan_idx) for seed in seeds for plan_idx in range(config.PLANS_PER_SEED)],
+        *[make_plan(seed, plan_idx, turns) for seed, plan_idx, turns in seed_plan_turns],
         desc="Generating plans",
     )
     # Step 2: record seed_idx for trajectory & dialogue generation
@@ -543,12 +564,13 @@ async def async_gen_trajectories(
     sem: asyncio.Semaphore,
     seeds: List[Dict[str, Any]],
     plans: List[Dict[str, Any]],
+    plan_turns: List[int],
     run_id: str,
     dialogue_writer: AsyncJSONLWriter,
 ) -> List[Dict[str, Any]]:
-    async def run_one(seed: Dict[str, Any], plan: Dict[str, Any], traj_idx: int) -> Dict[str, Any]:
+    async def run_one(seed: Dict[str, Any], plan: Dict[str, Any], traj_idx: int, turns: int) -> Dict[str, Any]:
         try:
-            dialogue = await run_responder(client["responder"], sem, seed, plan, traj_idx)
+            dialogue = await run_responder(client["responder"], sem, seed, plan, traj_idx, turns)
             evaluation = await evaluate_trajectory(client["evaluator"], sem, plan, dialogue)
             score = compute_score(evaluation)
             return {
@@ -575,20 +597,22 @@ async def async_gen_trajectories(
             }
     trajectories = [ ]
     tasks = [
-        (seeds[plan["seed_idx"]], plan, traj_idx)
-        for plan in plans for traj_idx in range(config.TRAJECTORIES_PER_PLAN)
+        (seeds[plan["seed_idx"]], plan, traj_idx, turns)
+        for plan, turns in zip(plans, plan_turns) for traj_idx in range(config.TRAJECTORIES_PER_PLAN)
     ]
+    chunk_size = config.MAX_CONCURRENCY * 2
+    chunks = [ tasks[i:i+chunk_size] for i in range(0, len(tasks), chunk_size) ]
     # Process tasks in chunks
-    for idx, chunk in enumerate(chunked(tasks, config.MAX_CONCURRENCY * 2)):
+    for idx, chunk in enumerate(chunks):
         # Prepare coroutines for this chunk
-        coros = [run_one(seed, plan, traj_idx) for seed, plan, traj_idx in chunk]
+        coros = [run_one(seed, plan, traj_idx, turns) for seed, plan, traj_idx, turns in chunk]
         # Run coroutines and collect results
         results = await tqdm_asyncio.gather(
             *coros, 
             desc=f"Generating & Evaluating trajectories chunk {idx}..."
         )
         # Step 3: generate valid dialogues
-        cur_plans = [ plan for seed, plan, traj_idx in chunk ]
+        cur_plans = [ plan for seed, plan, traj_idx, turns in chunk ]
         await async_gen_dialogues(run_id, seeds, cur_plans, results, dialogue_writer)
         # Extend results
         trajectories.extend(results)
@@ -612,7 +636,7 @@ async def async_gen_dialogues(
             and not e["evaluation"].get("trap_triggered")
         ]
         eligible_sorted = sorted(eligible, key=lambda e: e["score"], reverse=True)
-        keep_ids = {e["traj_idx"] for e in eligible_sorted[:2]}
+        keep_ids = {e["traj_idx"] for e in eligible_sorted[:1]} # select top-1
         for item in plan_trajectories:
             await dialogue_writer.write(build_entry(
                 seed=seeds[plan["seed_idx"]],
@@ -663,11 +687,23 @@ async def main() -> None:
     await plan_writer.start()
     await dialogue_writer.start()
     
+    # Step 0: generate plan_turns for # seed * # plans per seed
+    plan_turns = [ 
+        random.randrange(config.PLAN_TURNS[0], config.PLAN_TURNS[1]) 
+        for _ in range(config.SEEDS_PER_RUN * config.PLANS_PER_SEED) 
+    ]
+    logging.info(
+f"""# plan turns: {len(plan_turns)}; avg turns: {sum(plan_turns)/len(plan_turns)}
+1st: {plan_turns[0]}; last: {plan_turns[-1]}
+max turns: {max(plan_turns)}; min turns: {min(plan_turns)}; 
+"""
+    )
     # Step 1: generate plans
     plans = await async_gen_plans(
         client,
         sem,
         seeds,
+        plan_turns,
         run_id,
         taxonomy_categories,
         planner_template,
@@ -676,7 +712,7 @@ async def main() -> None:
     # clean asyncio queue and background coroutines
     await plan_writer.stop()
     # Step 2: generate trajectories
-    trajectories = await async_gen_trajectories(client, sem, seeds, plans, run_id, dialogue_writer)
+    trajectories = await async_gen_trajectories(client, sem, seeds, plans, plan_turns, run_id, dialogue_writer)
     # # Step 3: generate valid dialogues
     # await async_gen_dialogues(run_id, seeds, plans, trajectories, dialogue_writer)
     # clean asyncio queue and background coroutines

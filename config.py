@@ -1,21 +1,40 @@
 from pathlib import Path
 
 # API configuration
-PLANNER_BASE_URL = "http://172.28.51.155:8080/v1"
-RESPONDER_BASE_URL = "http://172.28.52.255:8080/v1"
-EVALUATOR_BASE_URL = "http://172.28.39.140:8080/v1"
+## Comb 1
+PLANNER_BASE_URL = "http://172.28.35.12:8080/v1"
+RESPONDER_BASE_URL = "http://172.28.33.168:8080/v1"
+EVALUATOR_BASE_URL = "http://172.28.37.228:8080/v1"
+# ## Comb 2
+# PLANNER_BASE_URL = "http://172.28.37.228:8080/v1" 
+# RESPONDER_BASE_URL = "http://172.28.35.12:8080/v1"
+# EVALUATOR_BASE_URL = "http://172.28.33.168:8080/v1"
+# API_KEY_ENV = "none"
+# ## Comb 3
+# PLANNER_BASE_URL = "http://172.28.33.168:8080/v1"
+# RESPONDER_BASE_URL = "http://172.28.37.228:8080/v1" 
+# EVALUATOR_BASE_URL = "http://172.28.35.12:8080/v1"
 API_KEY_ENV = "none"
 
 # Models
+## Comb 1
 PLANNER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
 RESPONDER_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
 EVALUATOR_MODEL = "openai/gpt-oss-120b" # w/o prefix caching
+# ## Comb 2
+# PLANNER_MODEL = "openai/gpt-oss-120b" # w/o prefix caching 
+# RESPONDER_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
+# EVALUATOR_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
+# ## Comb 3
+# PLANNER_MODEL = "zai-org/GLM-4.5-Air-FP8" # w/ prefix caching
+# RESPONDER_MODEL = "openai/gpt-oss-120b" # w/o prefix caching 
+# EVALUATOR_MODEL = "Qwen/Qwen3-Next-80B-A3B-Instruct" # w/o prefix caching
 
 # Generation knobs
 PLANS_PER_SEED = 4
 TRAJECTORIES_PER_PLAN = 4
-PLAN_TURNS = 8
-SEEDS_PER_RUN = 2560
+PLAN_TURNS = [3,8] # [min, max)
+SEEDS_PER_RUN = 1280
 
 PLANNER_TEMPERATURE = 0.9
 RESPONDER_TEMPERATURE = 0.7
