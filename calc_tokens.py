@@ -1,14 +1,15 @@
 import json
 from transformers import AutoTokenizer
 
-def get_max_num_tokens(texts: list[str] | str):
+def get_num_tokens(texts: list[str] | str):
     if isinstance(texts, str):
         texts = [ texts ]
-    tokenizer = AutoTokenizer.from_pretrained("zai-org/GLM-4.5-Air-FP8")
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Next-80B-A3B-Instruct")
     enc = tokenizer(texts, add_special_tokens=False)
-    return max([len(ids) for ids in enc["input_ids"]])
+    print(f"avg # tokens: {sum([len(ids) for ids in enc["input_ids"]]) / len(texts)}")
+    print(f"max # tokens: {max([len(ids) for ids in enc["input_ids"]])}")
 
-path = "./generated/dialogues/run_20251209_001012.jsonl"
+path = "./generated/dialogues/filtered/generated_mc_data.jsonl"
 
 total_msgs = [ ]
 with open(path, "r", encoding="utf-8") as f:
@@ -18,4 +19,4 @@ with open(path, "r", encoding="utf-8") as f:
             obj = json.loads(line)
             total_msg = ''.join([ msg['content'] for msg in obj["messages"] ])
             total_msgs.append(total_msg)
-print(f"max # tokens: {get_max_num_tokens(total_msgs)}")
+get_num_tokens(total_msgs)
