@@ -5,9 +5,9 @@ host: "0.0.0.0"
 port: 8080
 uvicorn-log-level: "info"
 tensor-parallel-size: 4
-gpu-memory-utilization: 0.85
+gpu-memory-utilization: 0.8
 max-model-len: 32768
-max-num-seqs: 128 # 128
+max-num-seqs: 32 # 128
 override-generation-config: '{ "max_new_tokens": 16384 }'
 seed: 42
 enable_prefix_caching: true

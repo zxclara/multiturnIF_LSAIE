@@ -187,6 +187,72 @@ class LinearCrossEntropyLoss(SFTLoss, nn.Module):
 
         return total_loss / total_valid_tokens
 
+
+class LinearSumCrossEntropyLoss(LinearCrossEntropyLoss):
+    def __init__(
+        self,
+        num_output_chunks: int = 8,
+        ignore_index: int = -100,
+        tp_enabled: bool = False,
+        mask_ignored_tokens: bool = True,
+    ):
+        super().__init__()
+        """
+        Args:
+            num_output_chunks (int): Number of chunks to split the output tensor into. Default is 8.
+            ignore_index (int): Index to ignore in the target tensor. Default is -100.
+            mask_ignored_tokens (bool): Whether to mask out ignored tokens during loss computation. Default is True.
+        """
+        self.linear_projection = None
+        self.num_output_chunks = num_output_chunks
+        self.ignore_index = ignore_index
+        self.mask_ignored_tokens = mask_ignored_tokens
+        self.tp_enabled = tp_enabled
+
+    def forward(
+        self,
+        outputs: torch.Tensor,
+        targets: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Args:
+            outputs (torch.Tensor): Hidden state of the model, pre projection. Shape ``[bsz, seq_len, emb_dim]``
+            targets (torch.Tensor): Labels for the model. Shape ``[bsz, seq_len]``
+
+        Returns:
+            torch.Tensor: loss tensor
+        """
+        total_valid_tokens = torch.where(targets != self.ignore_index)[0].numel()
+        if total_valid_tokens == 0:
+            return torch.tensor(0.0, device=targets.device)
+
+        # this redistribute allows tensor spitting without replication
+        if isinstance(outputs, DTensor):
+            outputs = outputs.redistribute(
+                device_mesh=outputs.device_mesh,
+                placements=[Shard(-1)] * outputs.device_mesh.ndim,
+            )
+
+        targets = targets.reshape(-1)
+        outputs = outputs.reshape(-1, outputs.shape[-1])
+
+        if self.mask_ignored_tokens:
+            outputs, targets = self.mask_inputs(outputs, targets)
+
+        hidden_chunks = outputs.tensor_split(self.num_output_chunks, dim=0)
+        target_chunks = targets.tensor_split(self.num_output_chunks, dim=0)
+
+        total_loss = torch.tensor(0.0, device=targets.device)
+        for hidden_chunk, target_chunk in zip(hidden_chunks, target_chunks):
+            loss = self.compute_cross_entropy(hidden_chunk, target_chunk)
+            # without this backprop throws `'Tensor' object has no attribute '_local_tensor'`
+            if isinstance(loss, DTensor):
+                loss = loss.full_tensor()
+            total_loss += loss
+
+        return total_loss
+
+
 class LinearScaledCrossEntropyLoss(LinearCrossEntropyLoss):
     def __init__(
         self,

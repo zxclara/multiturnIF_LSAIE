@@ -6,7 +6,7 @@
 
 from .ce_chunked_output_loss import CEWithChunkedOutputLoss
 
-from .cross_entropy_loss import LinearCrossEntropyLoss, LinearScaledCrossEntropyLoss
+from .cross_entropy_loss import LinearCrossEntropyLoss, LinearScaledCrossEntropyLoss, LinearSumCrossEntropyLoss
 from .kd_losses import (
     ForwardKLLoss,
     ForwardKLWithChunkedOutputLoss,
@@ -27,6 +27,7 @@ __all__ = [
     "SymmetricKLWithChunkedOutputLoss",
     "LinearCrossEntropyLoss",
     "LinearScaledCrossEntropyLoss",
+    "LinearSumCrossEntropyLoss",
     "SFTLoss",
     "RLLoss",
 ]
