@@ -42,7 +42,7 @@ torchrun \
     --master_addr="${MASTER_ADDR}" \
     --master_port="${MASTER_PORT}" \
     /iopsstor/scratch/cscs/"${USER}"/project/torchtune/sft_full_distributed.py \
-    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/sft/qwen3/8B_full_mco_scaled_half/ep1_lr1e-6.yaml
+    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/sft/qwen3/8B_full_mco_scaled_half/ep2_lr1e-6.yaml
 "
 
 # Submits the CMD to all the processes on all the nodes.

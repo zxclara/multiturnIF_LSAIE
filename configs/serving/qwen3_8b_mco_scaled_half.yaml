@@ -1,4 +1,4 @@
-model: /capstor/scratch/cscs/yanghao/sft/qwen3_8B/full/mco_scaled_half/ep1_lr1e-6/epoch_0
+model: /capstor/scratch/cscs/yanghao/sft/qwen3_8B/full/mco_scaled_half/ep2_lr1e-6/epoch_1
 host: "0.0.0.0"
 port: 8080
 uvicorn-log-level: "info"
