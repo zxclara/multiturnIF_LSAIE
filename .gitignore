@@ -1,3 +1,9 @@
 *.csv
 __pycache__/
 data/
+generated
+hfdata
+logs
+*.sbatch
+script
+results

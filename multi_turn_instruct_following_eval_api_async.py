@@ -17,11 +17,10 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
+import asyncio
 
 import pandas as pd
-from tqdm import tqdm
+from tqdm.asyncio import tqdm_asyncio
 
 from api_client import get_api_bot
 from metrics import MultiTurnInstructionFollowingPromptSolution
@@ -30,22 +29,19 @@ from utils import GenerationSetting
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-lock = Lock()
 
-
-def max_retry_wrapper(api_bot, messages, max_retry=3):
+async def max_retry_wrapper_async(api_bot, messages, max_retry=3):
     for attempt in range(max_retry, 0, -1):
         try:
-            response = api_bot.generate(messages)
+            response = await api_bot.async_generate(messages)
             return response
         except Exception as e:
             print(messages)
             logger.error(f"API call failed with error: {e}. Retries left: {attempt - 1}")
-            time.sleep(1)  # Brief pause before retrying
+            await asyncio.sleep(1)  # Brief pause before retrying
     return f'[MAX_RETRY=0] Failed.'
 
-
-def process_row(api_bot, row, step, max_retry):
+async def async_process_row(api_bot, row, step, max_retry):
     try:
         if step == 1:
             messages = [json.loads(row['turn_1_prompt'])]
@@ -54,7 +50,8 @@ def process_row(api_bot, row, step, max_retry):
                 {'role': 'assistant', 'content': row['responses']},
                 json.loads(row[f'turn_{step}_prompt']),
             ]
-        response = max_retry_wrapper(api_bot, messages, max_retry)
+        # use async wrapper instead of thread pool
+        response = await max_retry_wrapper_async(api_bot, messages, max_retry)
         updated_turns = json.dumps(messages)
         status = 'success' if not response.startswith('[MAX_RETRY') else 'failed'
         return updated_turns, response, status
@@ -63,8 +60,45 @@ def process_row(api_bot, row, step, max_retry):
         print(row)
         return row.get('turns', '[]'), f'Exception: {e}', 'exception'
 
+async def process_row_with_semaphore(semaphore, api_bot, row, step, max_retry):
+    async with semaphore:
+        return await async_process_row(api_bot, row, step, max_retry)
 
-def step_fn_api(
+async def process_rows_async_limited(input_df, output_df, api_bot, step, max_retry, max_concurrent=128) -> pd.DataFrame:
+    # 1. Filter rows to process
+    rows_to_process = []
+    total_loc = len(input_df)
+    for idx, row in input_df.iterrows():
+        current_turn_index = row.get('turn_index', 0)
+        response = row.get('responses', 'None')
+        if current_turn_index > step or (current_turn_index == step and not response.startswith('[MAX_RETRY')):
+            print(f"Skipped idx: {idx}")
+            continue
+        rows_to_process.append((idx, row))
+
+    logger.info(f"Processing {len(rows_to_process)} out of {total_loc} rows for step {step}")
+
+    # 2. Create a semaphore to limit concurrency
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    # 3. Create async tasks
+    tasks = [
+        process_row_with_semaphore(semaphore, api_bot, row, step, max_retry)
+        for _, row in rows_to_process
+    ]
+
+    # 4. Run tasks concurrently with limited concurrency
+    results_list = await tqdm_asyncio.gather(*tasks, desc="collect responses")
+
+    # 5. Update output DataFrame
+    for (idx, _), (turns, response, status) in zip(rows_to_process, results_list):
+        output_df.at[idx, "turns"] = turns
+        output_df.at[idx, "responses"] = response
+        output_df.at[idx, "status"] = status
+
+    return output_df
+
+async def step_fn_api(
     api_bot,
     input_df,
     step,
@@ -73,48 +107,16 @@ def step_fn_api(
     max_retry=3,
     max_workers=5,  # Limit the number of threads
 ):
-    total_loc = len(input_df)
     output_df = input_df.copy()
-    with lock:
-        if "turns" not in output_df.columns:
-            output_df["turns"] = pd.array(["[]"] * len(output_df), dtype="string")
-        if "responses" not in output_df.columns:
-            output_df["responses"] = pd.array(["None"] * len(output_df), dtype="string")
-        if "status" not in output_df.columns:
-            output_df["status"] = pd.array(["pending"] * len(output_df), dtype="string")
-        output_df['turn_index'] = step  # Update to current step
+    if "turns" not in output_df.columns:
+        output_df["turns"] = pd.array(["[]"] * len(output_df), dtype="string")
+    if "responses" not in output_df.columns:
+        output_df["responses"] = pd.array(["None"] * len(output_df), dtype="string")
+    if "status" not in output_df.columns:
+        output_df["status"] = pd.array(["pending"] * len(output_df), dtype="string")
+    output_df['turn_index'] = step  # Update to current step
 
-    rows_to_process = []
-    for idx, row in input_df.iterrows():
-        current_turn_index = row.get('turn_index', 0)
-        response = row.get('responses', 'None')
-        if current_turn_index > step or  (current_turn_index == step and not response.startswith('[MAX_RETRY')):
-            print(f"Skipped idx: {idx}")
-            continue  # Skip already processed rows
-        rows_to_process.append((idx, row))
-    logger.info(f"Processing {len(rows_to_process)} out of {total_loc} rows for step {step}")
-
-    results = {}
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_idx = {
-            executor.submit(process_row, api_bot, row, step, max_retry): idx
-            for idx, row in rows_to_process
-        }
-        for future in tqdm(as_completed(future_to_idx), total=len(future_to_idx)):
-            idx = future_to_idx[future]
-            try:
-                updated_turns, response, status = future.result()
-                results[idx] = (updated_turns, response, status)
-            except Exception as exc:
-                logger.error(f"Row {idx} generated an exception: {exc}")
-                results[idx] = (output_df.at[idx, "turns"], f'Exception: {exc}', 'exception')
-
-    with lock:
-        for idx, (turns, response, status) in results.items():
-            output_df.at[idx, "turns"] = turns
-            output_df.at[idx, "responses"] = response
-            output_df.at[idx, "status"] = status
+    output_df = await process_rows_async_limited(input_df, output_df, api_bot, step, max_retry, max_workers)
 
     if need_write2file and output_filepath:
         output_df.to_csv(output_filepath, index=False)
@@ -171,14 +173,14 @@ def main(
             f"results/{api_model_name}/{output_filepath_prefix}_step_{step}.csv"
         )
         os.makedirs(f'results/{api_model_name}', exist_ok=True)
-        step_output_df = step_fn_api(
+        step_output_df = asyncio.run(step_fn_api(
             api_bot=api_bot,
             input_df=step_input_df,
             step=step,
             need_write2file=need_write2file,
             output_filepath=output_filepath,
             max_workers=max_workers,
-        )
+        ))
 
         step_input_df = step_output_df.copy()
         step_metric_result = run_metric(

@@ -30,10 +30,13 @@ logging.basicConfig(level=logging.INFO)
 
 @dataclass 
 class GenerationSetting:
-    max_new_tokens: int = 4096
-    temperature: float = 1.0
-    top_p: float = 0.9
+    max_new_tokens: int = 32768
+    temperature: float = 0.7
+    top_p: float = 0.8
     seed: int = 42
+    top_k: int = 20
+    presence_penalty: float = 1.5
+
 
 
 
