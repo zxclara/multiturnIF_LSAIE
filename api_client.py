@@ -146,6 +146,8 @@ class VLLMAIBot(APIBot):
             'Qwen3-8B-sft-mix-sum', 
             'Qwen3-8B-sft-mix-scaled',
             'Qwen3-8B-sft-mco-scaled',
+            'Qwen3-8B-sft-mco-scaled-half',
+            'Qwen3-8B-sft-mco-scaled-aggressive',
         ]:
             return True
         return False
