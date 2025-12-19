@@ -1,9 +1,9 @@
-model: /capstor/scratch/cscs/yanghao/sft/qwen3_8B/full/mix_sum/ep4_lr2e-5/epoch_3
+model: /capstor/scratch/cscs/yanghao/sft/qwen3_8B/full/mix_sum/ep2_lr5e-6/epoch_1 # /capstor/scratch/cscs/yanghao/sft/qwen3_8B/full/mix_sum/ep4_lr2e-5/epoch_3
 host: "0.0.0.0"
 port: 8080
 uvicorn-log-level: "info"
 data-parallel-size: 4
 gpu-memory-utilization: 0.9
-override-generation-config: '{ "temperature": 0.7, "top_p": 0.8, "top_k": 20, "max_new_tokens": 32768 }'
+override-generation-config: '{ "temperature": 0.7, "top_p": 0.8, "top_k": 20 }' # '{ "temperature": 0.7, "top_p": 0.8, "top_k": 20, "max_new_tokens": 32768 }'
 seed: 42
 served-model-name: Qwen3-8B-sft-mix-sum

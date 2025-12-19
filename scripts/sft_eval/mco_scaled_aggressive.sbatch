@@ -6,8 +6,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=4
 #SBATCH --time=02:59:59
-#SBATCH --output=/iopsstor/scratch/cscs/yanghao/project/log/sft_eval/mix_sum_ss_%j.out
-#SBATCH --error=/iopsstor/scratch/cscs/yanghao/project/log/sft_eval/mix_sum_ss_%j.err
+#SBATCH --output=/iopsstor/scratch/cscs/yanghao/project/log/sft_eval/mco_scaled_aggressive_%j.out
+#SBATCH --error=/iopsstor/scratch/cscs/yanghao/project/log/sft_eval/mco_scaled_aggressive_%j.err
 #SBATCH --environment=/iopsstor/scratch/cscs/yanghao/project/env/vllm_env.toml
 
 # Stop the script if a command fails or if an undefined variable is used
@@ -44,7 +44,7 @@ VLLM_CMD="
 vllm serve \
     --dtype auto \
     --pipeline-parallel-size ${SLURM_NNODES} \
-    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/qwen3_8b_mix_sum.yaml
+    --config /iopsstor/scratch/cscs/"${USER}"/project/configs/serving/qwen3_8b_mco_scaled_aggressive.yaml
 "
 CMD="
 # print current environment variables
