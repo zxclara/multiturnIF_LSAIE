@@ -1,4 +1,6 @@
 # multi-challenge-adapt
+In this project, we explore a scalable methodology for producing high-quality datasets that target at improving LLMs' long-context instruction-following capabilities. This project is inspired by the ideas and evaluation dimensions proposed in the MultiChallenge paper.
+Our focus is on scalable dataset generation rather than model evaluation methodology.
 
 Quick start
 - Python 3.10+, install deps: `pip install -U openai datasets`.
