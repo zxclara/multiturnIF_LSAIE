@@ -8,6 +8,7 @@ multi-turn evaluation benchmark from https://github.com/facebookresearch/Multi-I
 * `metrics.py`: This file contains the implementation of various metrics that can be used to calculate ifeval, data preprocess and enrichment for multi turn instructions.
 * `utils.py`: This file contains utility functions that are used throughout the framework
 * `multi_turn_instruct_following_eval_api.py`: This file contains the main function that executes the multi-turn evaluation benchmark via API calls.
+* `multi_turn_instruct_following_eval_api_async.py`: This file contains the main function that executes the multi-turn evaluation benchmark via API calls, concurrency is based on `asyncio`.
 
 ## Usage
 1. Create a new env with python 3.10 and install the required dependencies:
@@ -26,14 +27,7 @@ nltk.download('punkt')
 nltk.download('punkt_tab')
 ```
 
-4. Swiss AI api key: export MY_SWISSAI_API=<your_key>
+4. Run experiments via `sbatch` file provided in the `experiments` branch.
 
-5. Run the evaluation in `multi_turn_instruct_following_eval_api.py` with `swiss-ai/Apertus-8B-Instruct-2509`:
-```bash
-python multi_turn_instruct_following_eval_api.py \
-        --max_workers 5 \
-        --api_model_name swiss-ai/Apertus-8B-Instruct-2509 \
-        --input_data_csv data/Multi-IF/multiIF_20241018.csv \
-        --max_new_tokens 1024 \
-        --steps 1 2 3
-```
+## Results
+Our final results corresponding to `Qwen3-8B-sft-mco-scaled` (use epoch 1 ckpt of the total 2 epochs) locate in `exp7_num_ep/all_1ep/Qwen3-8B-sft-mco-scaled`.
